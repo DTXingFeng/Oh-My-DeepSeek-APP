@@ -1,5 +1,11 @@
 # Oh-My-DeepSeek-APP
 
+**Make DeepSeek Great Again!**
+
+让 DeepSeek 再次伟大！
+
+灵感致敬 [Oh My Minecraft Client (OMMC)](https://github.com/plusls/oh-my-minecraft-client)。
+
 Android 个人聊天客户端，直连 **DeepSeek 官方付费 API**。基于官方 MIT 开源 [chat-demo](https://github.com/deepseek-ai/chat-demo)，将完整前端打包进 APK，提供 Android 文件、麦克风、密钥保存与返回键适配。详见 [来源说明](NOTICE.md)。
 
 客户端不设每日聊天额度、4 万字输入上限或七天会话失效规则。API 本身的计费、上下文、文件与服务端限制仍然适用：[具体边界与核查来源](docs/LIMITS.md)。

@@ -38,6 +38,7 @@ import styles from './Settings.module.css'
 import { saveBlob } from '../../services/native.js'
 import type { ImportProgress } from '../../services/chat/history/progress.js'
 import { MemorySettings } from './MemorySettings.js'
+import { BalanceSummary } from '../balance/Balance.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -130,6 +131,7 @@ const SettingsContent = ({
           ) : (
             <>
               <ApiKeyField editor={apiKeyEditor} />
+              <BalanceSummary />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell

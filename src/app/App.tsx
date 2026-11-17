@@ -26,6 +26,8 @@ import { closeMobileSider, useMobileSider } from '../components/sider/mobileSide
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import styles from './App.module.css'
 import { bindMemorySettings, initMemory, rebuildHistoryIndex } from '../services/memory/engine.js'
+import { bindBalance } from '../services/balance/store.js'
+import { BalanceDialog } from '../components/balance/Balance.js'
 
 export const App = () => {
   const t = useTranslate()
@@ -53,6 +55,7 @@ export const App = () => {
 
   usePreventPageScroll(isMobile)
   useEffect(bindMemorySettings, [])
+  useEffect(bindBalance, [])
   useEffect(() => {
     if (ready && !importingHistory) {
       void initMemory()
@@ -164,6 +167,7 @@ export const App = () => {
         <SearchPanel />
       </div>
       <SettingsDialog />
+      <BalanceDialog />
       <Toast />
     </>
   )

@@ -91,7 +91,8 @@ const mock = async () =>
   window.fetch=async(url,init={})=>{
     if(!String(url).startsWith('https://api.deepseek.com'))return original(url,init);
     if(String(url).endsWith('/models'))return new Response(JSON.stringify({data:[{id:'deepseek-flash'}]}));
-    const body=JSON.parse(init.body);
+      if(String(url).endsWith('/user/balance'))return new Response(JSON.stringify({is_available:true,balance_infos:[{currency:'CNY',total_balance:'100.00',granted_balance:'0.00',topped_up_balance:'100.00'}]}));
+      const body=JSON.parse(init.body);
     if(String(url).endsWith('/chat/completions')){
       const payload=JSON.parse(body.messages.at(-1).content);window.__extractCalls.push(payload.user);
       if(window.__holdExtraction){

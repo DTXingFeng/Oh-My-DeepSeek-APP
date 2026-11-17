@@ -63,7 +63,19 @@ node scripts/import-feedback-smoke.mjs
 
 TypeScript、oxlint、网页构建和 Android 全新构建/`lintDebug` 通过；Lint 保留原有必需的 JavaScript 提示。BlueStacks Android 9 桌面已实际显示新图标，覆盖升级后 526 个对话与已配置密钥保留；WebView 读取到 96 × 96 favicon。Android 13 及以上单色主题层已打包，尚未在对应系统实机验证。
 
+## 0.3.0：账户余额与提醒
+
+按用户指定的设计参考流程新增侧栏余额卡、手机顶栏入口和明细弹窗；支持充值/赠送拆分、金额隐藏、自定义低余额阈值、异常提示与刷新。设计观察、接口及缓存行为见 [余额说明](BALANCE.md)。
+
+13 项纯逻辑测试（含 4 项余额测试）、18 项独立 Android WebView 余额流程测试和 14 项记忆回归通过；TypeScript、oxlint、网页构建、Android 构建及 Lint 通过，保留原有 JavaScript 通用提示。余额流程测试使用人工数据，包含 320/412 px 视口模拟、中英文、深色模式、长金额、错误保旧、换 Key 防串号和并发刷新；不是物理手机实测。
+
+主 App 覆盖升级后 526 个对话与原有密钥保留。已在实际 App 中成功读取官方余额并显示明细；验收记录只记成功状态，不记录真实金额或密钥。没有为此调用收费模型。
+
 ## 截图
+
+余额页来自独立测试包，金额为人工 fixture：
+
+![余额明细与低余额提示](screenshots/android-balance.png)
 
 以下是虚拟机中实际运行的 Android WebView 页面，不是设计图。记忆页仅使用人工样例，主页截图的聊天记录和测试密钥已清除。
 

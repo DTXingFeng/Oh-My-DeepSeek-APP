@@ -76,6 +76,9 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
     }
     throw new ApiError('network', error instanceof Error ? error.message : String(error))
   }
+  if (init.method?.toUpperCase() === 'POST' && url.startsWith(`${API_ORIGIN}/`)) {
+    window.dispatchEvent(new Event('ohmydeepseek-usage'))
+  }
   if (!response.ok) {
     throw await readErrorResponse(response)
   }

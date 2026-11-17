@@ -1120,6 +1120,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     }
   } finally {
     titleRequests.delete(controller)
+    window.dispatchEvent(new Event('ohmydeepseek-usage'))
     streamFlushes.delete(sessionId)
     cancelAnimationFrame(frame)
     updateReply(sessionId, reply)

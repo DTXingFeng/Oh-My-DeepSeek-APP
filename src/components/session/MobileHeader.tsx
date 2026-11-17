@@ -4,6 +4,7 @@ import { newChat } from '../../services/chat/store.js'
 import { IconButton } from '../base/IconButton.js'
 import { openMobileSider } from '../sider/mobileSiderState.js'
 import styles from './MobileHeader.module.css'
+import { BalanceSummary } from '../balance/Balance.js'
 
 /** 移动端顶栏：左侧菜单打开侧边栏；会话页再显示标题与开启新对话 */
 export const MobileHeader = ({ title }: { title?: string }) => {
@@ -18,6 +19,7 @@ export const MobileHeader = ({ title }: { title?: string }) => {
         onClick={openMobileSider}
       />
       <div className={styles.title}>{title ?? t('appName')}</div>
+      <BalanceSummary compact />
       {title === undefined ? null : (
         <IconButton
           size="xl"

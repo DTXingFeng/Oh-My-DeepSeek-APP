@@ -50,6 +50,7 @@ const mockFetch = async () =>
   window.fetch = async (url, init = {}) => {
     if (!String(url).startsWith('https://api.deepseek.com')) return original(url, init);
     if (String(url).endsWith('/models')) return new Response(JSON.stringify({data:[{id:'deepseek-flash'}]}), {status:200});
+    if (String(url).endsWith('/user/balance')) return new Response(JSON.stringify({is_available:true,balance_infos:[{currency:'CNY',total_balance:'100.00',granted_balance:'0.00',topped_up_balance:'100.00'}]}));
     if (!String(url).endsWith('/messages')) throw Error('Unexpected API request in test: ' + url);
     const body = JSON.parse(init.body);
     window.__requests.push({ url: String(url), body });

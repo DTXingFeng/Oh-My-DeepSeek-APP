@@ -29,6 +29,10 @@
   margin-left: 113px;
 }
 
+.header:has(.withCollapsedSider) {
+  padding-right: 210px;
+}
+
 .inputContainer {
   position: sticky;
   bottom: 0;

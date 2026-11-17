@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/branding/app-icon.png" width="112" alt="Oh My DeepSeek APP 图标"></p>
+
 <h1 align="center">Oh My DeepSeek APP</h1>
 
 <p align="center">

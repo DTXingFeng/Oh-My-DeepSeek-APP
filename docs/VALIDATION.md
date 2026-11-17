@@ -57,6 +57,12 @@ node scripts/import-feedback-smoke.mjs
 
 主 App 从 0.1.1 覆盖升级至 0.2.0 后，525 个已有对话数量不变，原生保存的 API Key 仍已配置，输入框可用。未清除主 App 数据。
 
+## 0.2.1：角色图标
+
+采用确认后的第二版蓝发鲸尾女仆图标，新增 Android 自适应彩色图层、单色主题图层、网页 favicon 与 README 图标。前景位于中央安全区域，以适应系统遮罩。图源、重新生成方式见 [图标资源](../assets/branding/README.md)。
+
+TypeScript、oxlint、网页构建和 Android 全新构建/`lintDebug` 通过；Lint 保留原有必需的 JavaScript 提示。BlueStacks Android 9 桌面已实际显示新图标，覆盖升级后 526 个对话与已配置密钥保留；WebView 读取到 96 × 96 favicon。Android 13 及以上单色主题层已打包，尚未在对应系统实机验证。
+
 ## 截图
 
 以下是虚拟机中实际运行的 Android WebView 页面，不是设计图。记忆页仅使用人工样例，主页截图的聊天记录和测试密钥已清除。

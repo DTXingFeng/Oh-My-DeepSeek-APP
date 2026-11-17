@@ -19,7 +19,7 @@
 
 ## 开始使用
 
-1. 安装 APK（Android 8.0+），打开应用。
+1. 从 [Releases 下载 APK](https://github.com/DTXingFeng/Oh-My-DeepSeek-APP/releases/latest) 并安装（Android 8.0+），打开应用。
 2. 在「设置 → 数据管理」填入自己的 **DeepSeek API Key**。
 3. 开始聊天；试着说「记住，我喜欢简短的中文回答」。记忆可在「设置 → 记忆」管理。
 

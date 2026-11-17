@@ -9,7 +9,14 @@ import * as db from './db.js'
 import { isForgetAllCommand, looksLikeSecret, parseExtraction } from './policy.js'
 import { rankHistory, rankMemories, tokenize } from './retrieval.js'
 import { MEMORY_EXTRACTION_PROMPT, formatMemoryContext } from './prompts.js'
-import type { HistoryChunk, MemorySource, SavedMemory } from './types.js'
+import type {
+  HistoryChunk,
+  MemorySource,
+  SavedMemory,
+  MemoryCorrection,
+  OverviewEntry,
+} from './types.js'
+import { isMutedHistory, memorySnapshot, sourceSnapshot } from './overview-model.js'
 
 type MemoryState = {
   ready: boolean
@@ -66,6 +73,77 @@ export const initMemory = () =>
 
 const refreshSaved = async () => useMemoryState.setState({ saved: await db.loadMemories() })
 
+export const applyReviewedMemoryCorrection = async (proposal: MemoryCorrection) => {
+  await initMemory()
+  const saved = useMemoryState.getState().saved
+  if (memorySnapshot(saved) !== proposal.snapshot) {
+    throw new Error('memoryOverviewChanged')
+  }
+  const known = new Map(saved.map((memory) => [memory.id, memory]))
+  const now = Date.now()
+  const updates = proposal.changes.map((change): SavedMemory => {
+    if (
+      !change.text.trim() ||
+      change.text.length > 1000 ||
+      looksLikeSecret(change.text) ||
+      (change.id && !known.has(change.id))
+    ) {
+      throw new Error('memoryInvalidContent')
+    }
+    const previous = change.id ? known.get(change.id) : undefined
+    return {
+      id: previous?.id ?? createId(),
+      key: previous?.key ?? `manual.${createId()}`,
+      text: change.text.trim(),
+      origin: 'manual',
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      ...(previous?.muted ? { muted: true } : {}),
+      ...(previous?.sourceSessionId
+        ? { sourceSessionId: previous.sourceSessionId, sourceMessageId: previous.sourceMessageId }
+        : {}),
+    }
+  })
+  if (proposal.forget.some((id) => !known.has(id))) {
+    throw new Error('memoryOverviewInvalid')
+  }
+  revision++
+  updateJobs.forEach((job) => job.controller.abort())
+  await db.updateSavedBatch(updates, proposal.forget, proposal.snapshot)
+  await refreshSaved()
+}
+
+export const muteMemories = async (ids: string[], muted: boolean) => {
+  await initMemory()
+  const saved = useMemoryState.getState().saved
+  revision++
+  updateJobs.forEach((job) => job.controller.abort())
+  await db.updateSavedBatch(
+    saved.filter((memory) => ids.includes(memory.id)).map((memory) => ({ ...memory, muted })),
+    [],
+    memorySnapshot(saved)
+  )
+  await refreshSaved()
+}
+
+export const storeMemoryOverview = async (entries: OverviewEntry[], expected: string) => {
+  const saved = useMemoryState.getState().saved
+  if (memorySnapshot(saved) !== expected) {
+    throw new Error('memoryOverviewChanged')
+  }
+  const updates = saved.map((memory): SavedMemory => {
+    const entry = entries.find((item) => item.sourceIds[0] === memory.id)
+    return {
+      ...memory,
+      overview: entry
+        ? { ...entry, snapshot: sourceSnapshot(saved, entry.sourceIds), generatedAt: Date.now() }
+        : undefined,
+    }
+  })
+  await db.updateSavedBatch(updates, [], expected)
+  await refreshSaved()
+}
+
 export const saveMemory = async (text: string, id?: string) => {
   await initMemory()
   const content = text.trim()
@@ -83,6 +161,7 @@ export const saveMemory = async (text: string, id?: string) => {
     origin: 'manual',
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
+    ...(previous?.muted ? { muted: true } : {}),
     ...(previous?.sourceSessionId
       ? { sourceSessionId: previous.sourceSessionId, sourceMessageId: previous.sourceMessageId }
       : {}),
@@ -360,7 +439,11 @@ export const buildMemoryContext = async (
   }
   const sources: MemorySource[] = []
   let remaining = 3200
-  for (const memory of rankMemories(useMemoryState.getState().saved, question)) {
+  const muted = useMemoryState.getState().saved.filter((memory) => memory.muted)
+  for (const memory of rankMemories(
+    useMemoryState.getState().saved.filter((memory) => !memory.muted),
+    question
+  )) {
     if (memory.text.length > remaining) {
       continue
     }
@@ -377,7 +460,11 @@ export const buildMemoryContext = async (
   }
   if (enabledHistory()) {
     const candidates = await db.findHistoryChunks(tokenize(question))
-    const available = candidates.filter((chunk) => !isMemoryExcluded(chunk.sessionId))
+    const available = candidates.filter(
+      (chunk) =>
+        !isMemoryExcluded(chunk.sessionId) &&
+        !isMutedHistory(chunk.text, chunk.sessionId, chunk.messageId, muted)
+    )
     for (const chunk of rankHistory(available, question, sessionId)) {
       // Recheck source liveness before disclosure, even if index cleanup was interrupted.
       const original = await chats.loadSession(chunk.sessionId)
@@ -409,8 +496,17 @@ export const buildMemoryContext = async (
     source.kind === 'saved'
       ? useMemoryState
           .getState()
-          .saved.some((memory) => memory.id === source.id && memory.text === source.excerpt)
-      : enabledHistory() && !isMemoryExcluded(source.sessionId ?? '')
+          .saved.some(
+            (memory) => memory.id === source.id && memory.text === source.excerpt && !memory.muted
+          )
+      : enabledHistory() &&
+        !isMemoryExcluded(source.sessionId ?? '') &&
+        !isMutedHistory(
+          source.excerpt,
+          source.sessionId ?? '',
+          source.messageId ?? '',
+          useMemoryState.getState().saved.filter((memory) => memory.muted)
+        )
   )
   return {
     sources: valid,
@@ -463,7 +559,10 @@ export const updateMemoryFromTurn = (
     updateJobs.set(sourceId, { sessionId, controller })
     const timer = setTimeout(() => controller.abort(), 25_000)
     try {
-      const existing = rankMemories(useMemoryState.getState().saved, userText).slice(0, 25)
+      const existing = rankMemories(
+        useMemoryState.getState().saved.filter((memory) => !memory.muted),
+        userText
+      ).slice(0, 25)
       const response = await request(`${API_ORIGIN}/chat/completions`, {
         method: 'POST',
         signal: controller.signal,
@@ -475,7 +574,19 @@ export const updateMemoryFromTurn = (
           safety_check: { level: 'high' },
           messages: [
             { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
-            { role: 'user', content: JSON.stringify({ user: userText.slice(0, 6000), existing }) },
+            {
+              role: 'user',
+              content: JSON.stringify({
+                user: userText.slice(0, 6000),
+                existing: existing.map(({ id, text, key, origin, updatedAt }) => ({
+                  id,
+                  text,
+                  key,
+                  origin,
+                  updatedAt,
+                })),
+              }),
+            },
           ],
         }),
       })
@@ -522,6 +633,7 @@ export const updateMemoryFromTurn = (
         )
         if (
           previous?.origin === 'manual' ||
+          previous?.muted ||
           records.some((memory) => memory.text.trim() === proposal.text.trim())
         ) {
           continue
@@ -573,7 +685,7 @@ export const exportMemoryFile = async () => {
       JSON.stringify(
         {
           format: 'ohmy-deepseek-memory',
-          version: 1,
+          version: 2,
           saved: useMemoryState.getState().saved,
           excluded: useMemoryState.getState().excluded,
         },
@@ -607,7 +719,7 @@ export const importMemoryFile = async (file: File) => {
   }
   if (
     input.format !== 'ohmy-deepseek-memory' ||
-    input.version !== 1 ||
+    ![1, 2].includes(input.version ?? 0) ||
     !Array.isArray(input.saved) ||
     (input.excluded !== undefined &&
       (!Array.isArray(input.excluded) ||
@@ -624,7 +736,8 @@ export const importMemoryFile = async (file: File) => {
       typeof item.text !== 'string' ||
       !item.text.trim() ||
       item.text.length > 1000 ||
-      looksLikeSecret(item.text)
+      looksLikeSecret(item.text) ||
+      (item.muted !== undefined && typeof item.muted !== 'boolean')
     ) {
       throw new Error('memoryInvalidBackup')
     }
@@ -636,6 +749,7 @@ export const importMemoryFile = async (file: File) => {
       origin: 'manual',
       createdAt: now,
       updatedAt: now,
+      ...(item.muted === true ? { muted: true } : {}),
     }
   })
   revision++

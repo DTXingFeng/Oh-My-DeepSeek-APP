@@ -7,6 +7,16 @@ export type SavedMemory = {
   updatedAt: number
   sourceSessionId?: string
   sourceMessageId?: string
+  muted?: boolean
+  overview?: OverviewEntry & { snapshot: string; generatedAt: number }
+}
+
+export type OverviewCategory = 'background' | 'preferences' | 'projects' | 'other'
+export type OverviewEntry = { category: OverviewCategory; text: string; sourceIds: string[] }
+export type MemoryCorrection = {
+  changes: { id?: string; text: string }[]
+  forget: string[]
+  snapshot: string
 }
 
 export type MemorySource = {

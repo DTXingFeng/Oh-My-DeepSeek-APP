@@ -24,6 +24,7 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import styles from './MemorySettings.module.css'
+import { MemoryOverview } from '../memory/MemoryOverview.js'
 
 export const MemorySettings = () => {
   const t = useTranslate()
@@ -68,6 +69,7 @@ export const MemorySettings = () => {
   return (
     <div className={styles.panel}>
       <p className={styles.intro}>{t('memoryIntroduction')}</p>
+      <MemoryOverview onEdit={(memory) => setEditor({ id: memory.id, text: memory.text })} onAdd={() => setEditor({ text: '' })} />
       {error ? (
         <p role="alert" className={styles.error}>
           {error}

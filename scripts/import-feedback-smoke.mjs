@@ -12,7 +12,7 @@ assert.equal(
 const cdp = await connectWebView()
 const wait = async (expression) => {
   for (let attempt = 0; attempt < 50; attempt++) {
-    if (await cdp.evaluate(expression)) return
+    if (await cdp.evaluate(`!!document.body && (${expression})`)) return
     await delay(50)
   }
   throw Error('Timeout: ' + expression)
@@ -31,7 +31,10 @@ const openSettings = async () => {
   )
 }
 try {
-  await wait('!!window.ohMyDeepSeekBack')
+  await cdp.send('Page.enable')
+  await cdp.evaluate(`localStorage.setItem('chat-demo:locale','zh-CN')`)
+  await cdp.send('Page.reload')
+  await wait(`!!window.ohMyDeepSeekBack && document.documentElement.lang==='zh-CN'`)
   await openSettings()
   const timestamp = '2026-11-17T00:00:00Z'
   const archive = { 'manifest.json': strToU8(JSON.stringify({ export_format_version: 3 })) }

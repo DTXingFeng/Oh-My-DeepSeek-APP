@@ -1,5 +1,6 @@
 import { openDB, type DBSchema } from 'idb'
 import type { HistoryChunk, MemoryCatalogEntry, SavedMemory } from './types.js'
+import { memorySnapshot } from './overview-model.js'
 
 /** Independent of the chat database: enabling memory never migrates existing chats. */
 interface MemoryDB extends DBSchema {
@@ -30,6 +31,23 @@ const getDB = () =>
 
 export const loadMemories = async () => (await getDB()).getAll('saved')
 export const putMemory = async (memory: SavedMemory) => (await getDB()).put('saved', memory)
+export const updateSavedBatch = async (
+  updates: SavedMemory[],
+  removed: string[],
+  expected: string
+) => {
+  const tx = (await getDB()).transaction('saved', 'readwrite')
+  if (memorySnapshot(await tx.store.getAll()) !== expected) {
+    tx.abort()
+    await tx.done.catch(() => {})
+    throw new Error('memoryOverviewChanged')
+  }
+  await Promise.all([
+    ...removed.map((id) => tx.store.delete(id)),
+    ...updates.map((memory) => tx.store.put(memory)),
+    tx.done,
+  ])
+}
 export const deleteMemory = async (id: string) => (await getDB()).delete('saved', id)
 export const hasProcessed = async (id: string) => !!(await (await getDB()).get('processed', id))
 export const markProcessed = async (id: string) => (await getDB()).put('processed', { id })

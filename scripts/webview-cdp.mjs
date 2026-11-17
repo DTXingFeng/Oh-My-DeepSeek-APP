@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process'
 
 export const SERIAL = process.env.ANDROID_SERIAL || '127.0.0.1:5555'
+export const APP_ID = process.env.ANDROID_APP_ID || 'app.ohmydeepseek.android'
 export const adb = (...args) =>
   execFileSync('adb', ['-s', SERIAL, ...args], { encoding: 'utf8' }).trim()
 
 /** Connect only to our debuggable Android app, never to a personal browser. */
 export const connectWebView = async () => {
-  const pid = adb('shell', 'pidof', 'app.ohmydeepseek.android').split(' ')[0]
+  const pid = adb('shell', 'pidof', APP_ID).split(' ')[0]
   if (!/^\d+$/.test(pid)) throw new Error('Start the debug APK first')
   const port = adb('forward', 'tcp:0', `localabstract:webview_devtools_remote_${pid}`)
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json()

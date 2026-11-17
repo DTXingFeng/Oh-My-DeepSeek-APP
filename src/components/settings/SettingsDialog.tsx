@@ -36,6 +36,7 @@ import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 import { saveBlob } from '../../services/native.js'
+import type { ImportProgress } from '../../services/chat/history/progress.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -43,7 +44,9 @@ import { saveBlob } from '../../services/native.js'
  */
 export const SettingsDialog = () => {
   const open = useSettingsDialog((state) => state.open)
-  return open ? <SettingsContent /> : null
+  // Keep the task result when the settings view closes and reopens.
+  const historyImport = useHistoryImport()
+  return open ? <SettingsContent historyImport={historyImport} /> : null
 }
 
 const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
@@ -55,14 +58,17 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 
-const SettingsContent = () => {
+const SettingsContent = ({
+  historyImport,
+}: {
+  historyImport: ReturnType<typeof useHistoryImport>
+}) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
   // 切换分组不丢失正在输入的 API Key 与导入状态
   const apiKeyEditor = useApiKeyEditor()
-  const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
@@ -70,11 +76,11 @@ const SettingsContent = () => {
     <>
       <Modal
         title={t('settings')}
-        closable
+        closable={!historyImport.busy}
         className={styles.dialog}
         mainClassName={styles.dialogMain}
         onClose={() => {
-          if (!historyDelete.busy) {
+          if (!historyDelete.busy && !historyImport.busy) {
             closeSettings()
           }
         }}
@@ -86,6 +92,7 @@ const SettingsContent = () => {
               type="button"
               role="tab"
               aria-selected={section === item.value}
+              disabled={historyImport.busy}
               className={clsx(styles.navItem, section === item.value && styles.navItemActive)}
               onClick={() => setSection(item.value)}
             >
@@ -95,6 +102,7 @@ const SettingsContent = () => {
           ))}
         </div>
         <div role="tabpanel" className={styles.content}>
+          <HistoryImportStatus historyImport={historyImport} />
           {section === 'general' ? (
             <>
               <SettingCell
@@ -352,6 +360,9 @@ const ImportConfirm = ({
       }
     >
       <div className={styles.importConfirmText}>{t('historyImportConfirmDescription')}</div>
+      <div className={styles.importFile}>
+        {historyImport.file?.name} · {formatImportSize(historyImport.file?.size ?? 0)}
+      </div>
     </Modal>
   )
 }
@@ -452,9 +463,12 @@ const SettingCell = ({
 
 /** 选文件后先提示覆盖；确认后才检查文件并执行导入，任何错误都提示导入失败。 */
 const useHistoryImport = () => {
+  const t = useTranslate()
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<Status>(null)
+  const [progress, setProgress] = useState<ImportProgress | null>(null)
+  const [details, setDetails] = useState<{ name: string; size: number } | null>(null)
   const importing = useRef(false)
 
   const confirm = async () => {
@@ -465,18 +479,122 @@ const useHistoryImport = () => {
     setFile(null)
     setBusy(true)
     setStatus(null)
+    setProgress({ phase: 'reading', completed: 0, total: 0, sessions: 0, images: 0 })
+    let lastUpdate = 0
+    let phase: ImportProgress['phase'] = 'reading'
     try {
-      const count = await importHistory(file)
-      setStatus({ key: count === 1 ? 'historyImportedOne' : 'historyImported', params: { count } })
-    } catch {
-      setStatus({ key: 'historyImportFailed', error: true })
+      // Give the loading state a frame before opening or parsing a large archive.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)))
+      const count = await importHistory(file, (next) => {
+        const now = performance.now()
+        if (
+          next.phase !== phase ||
+          now - lastUpdate >= 80 ||
+          (next.total > 0 && next.completed === next.total)
+        ) {
+          phase = next.phase
+          lastUpdate = now
+          setProgress(next)
+        }
+      })
+      const result = {
+        key: count === 1 ? 'historyImportedOne' : 'historyImported',
+        params: { count },
+      } as const
+      setStatus(result)
+      showToast(t(result.key, result.params))
+    } catch (error) {
+      setStatus(errorStatus('historyImportFailedReason', error))
+      showToast({ key: 'historyImportFailedShort', type: 'error' })
     } finally {
       importing.current = false
       setBusy(false)
     }
   }
 
-  return { file, busy, status, select: setFile, cancel: () => setFile(null), confirm }
+  const select = (selected: File) => {
+    if (importing.current) {
+      return
+    }
+    setDetails({ name: selected.name, size: selected.size })
+    setStatus(null)
+    setProgress(null)
+    setFile(selected)
+  }
+  return { file, busy, status, progress, details, select, cancel: () => setFile(null), confirm }
+}
+
+const formatImportSize = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+
+/** Persistent, visible task feedback; percentages describe this phase only. */
+const HistoryImportStatus = ({
+  historyImport: task,
+}: {
+  historyImport: ReturnType<typeof useHistoryImport>
+}) => {
+  const t = useTranslate()
+  if (!task.busy && !task.status) {
+    return null
+  }
+  const progress = task.progress
+  const phases = {
+    reading: 'historyImportReading',
+    validating: 'historyImportValidating',
+    indexing: 'historyImportIndexing',
+    importing: 'historyImportRunning',
+    saving: 'historyImportSaving',
+  } as const
+  const ratio =
+    progress && progress.total > 0
+      ? Math.min(100, (progress.completed / progress.total) * 100)
+      : undefined
+  const message =
+    task.busy && progress
+      ? t(phases[progress.phase])
+      : task.status
+        ? t(
+            task.status.key,
+            task.status.reason ? { message: t(task.status.reason) } : task.status.params
+          )
+        : ''
+  return (
+    <div
+      className={clsx(styles.importStatus, task.status?.error && styles.error)}
+      role={task.status?.error ? 'alert' : 'status'}
+      aria-live="polite"
+      aria-busy={task.busy}
+    >
+      <strong>{message}</strong>
+      <div className={styles.importFile}>
+        {task.details?.name} · {formatImportSize(task.details?.size ?? 0)}
+      </div>
+      {task.busy ? (
+        <>
+          <progress max={100} value={ratio} aria-label={message} />
+          {progress?.phase === 'indexing' ? (
+            <div>
+              {t('historyImportEntries', { completed: progress.completed, total: progress.total })}
+            </div>
+          ) : null}
+          {progress?.phase === 'importing' ? (
+            <div>
+              {t('historyImportBytes', {
+                completed: (progress.completed / 1024 / 1024).toFixed(1),
+                total: (progress.total / 1024 / 1024).toFixed(1),
+              })}
+            </div>
+          ) : null}
+          {progress && ['importing', 'saving'].includes(progress.phase) ? (
+            <div>
+              {t('historyImportStats', { sessions: progress.sessions, images: progress.images })}
+            </div>
+          ) : null}
+          <div>{t('historyImportKeepOpen')}</div>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 /** 导入 = 覆盖：用选中文件替换本地全部会话与附件。 */
@@ -505,7 +623,7 @@ const ImportHistory = ({
             onClick={() => inputRef.current?.click()}
           >
             <IconUploadOutline14 />
-            {t('upload')}
+            {t(historyImport.busy ? 'historyImportBusy' : 'historyImportChoose')}
           </Button>
           <input
             ref={inputRef}

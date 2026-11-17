@@ -28,8 +28,26 @@
 
 - 没有有效 DeepSeek API Key，没有调用收费模型、付费搜索、文件解析、ASR 或 TTS。不能将客户端模拟验收视为官方接口全流程验收。
 - BlueStacks 未能提供可读麦克风音轨；录音、ASR 和实际朗读需在有可用音频设备及有效 Key 的环境继续验证。
-- 历史 ZIP 导入/导出的归档逻辑沿用上游；系统文件保存/读取已实测，大型真实历史 ZIP 和复杂文档解析尚未端到端验收。
+- 历史 ZIP 导入/导出的归档逻辑沿用上游；系统文件保存/读取已实测。历史大文件的本地导入已补充验证，复杂文档的官方 API 解析仍未端到端验收。
 - APK 为调试签名；未配置发布签名、应用商店上架、自动升级或后台持续生成服务。
+
+## 0.1.1：导入反馈修复
+
+旧版确认导入后仅禁用按钮，没有读取或解析状态，设置关闭后局部状态也会丢失。修复包括：确认页显示文件名和大小；读取、校验、目录、解析、保存各阶段反馈；按实际 ZIP 目录项目数与压缩数据读取量更新进度；显示已解析的对话及图片数；成功与失败的持续提示及通知；设置关闭重开后保留结果。导入执行期间阻止误关闭设置。
+
+回归命令（独立包，与实际使用的 App 数据隔离）：
+
+```powershell
+cd android
+.\gradlew.bat assembleDebug -PisolatedImportTest
+cd ..
+adb -s 127.0.0.1:5555 install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb -s 127.0.0.1:5555 shell am start -n app.ohmydeepseek.android.importtest/app.ohmydeepseek.android.MainActivity
+$env:ANDROID_APP_ID='app.ohmydeepseek.android.importtest'
+node scripts/import-feedback-smoke.mjs
+```
+
+该命令在旧版本的实际导入代码路径上捕获到 `hasProgress:false / hasReadingText:false / busyButton:false`。修复后通过：延迟文件读取时持续反馈、实际 ZIP 成功导入与数量提示、执行期间保持设置可见、损坏文件提示具体原因并保留原记录、设置关闭重开后保留结果。另在独立包中使用本地大档案完成真实文件选择、解析与入库；未调用模型 API，原始档案和相关截图均不提交仓库。
 
 ## 截图
 

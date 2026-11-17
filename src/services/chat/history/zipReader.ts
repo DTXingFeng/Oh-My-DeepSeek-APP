@@ -85,7 +85,13 @@ type Entry = {
   offset: number
 }
 
-const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
+type ArchiveProgress = { phase: 'index' | 'entries'; completed: number; total: number }
+type OnArchiveProgress = (progress: ArchiveProgress) => void
+
+const readDirectory = async (
+  file: File,
+  onProgress?: OnArchiveProgress
+): Promise<{ entries: Entry[]; offset: number }> => {
   if (file.size < 22) {
     invalid()
   }
@@ -118,6 +124,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     invalid()
   }
   const entries: Entry[] = []
+  onProgress?.({ phase: 'index', completed: 0, total: count })
   const paths = new Set<string>()
   let cursor = 0
   for (let index = 0; index < count; index++) {
@@ -170,6 +177,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
       offset: entryOffset,
     })
     cursor = next
+    onProgress?.({ phase: 'index', completed: index + 1, total: count })
   }
   if (cursor !== size) {
     invalid()
@@ -238,8 +246,12 @@ export type ArchiveEntry = {
  * 按条目在文件中的物理顺序逐条、逐块解压，跳过目录条目。
  * 调用方必须消费完当前条目的数据，再请求下一个条目。
  */
-export async function* readArchive(file: File): AsyncGenerator<ArchiveEntry> {
-  const directory = await readDirectory(file)
+export async function* readArchive(
+  file: File,
+  onProgress?: OnArchiveProgress
+): AsyncGenerator<ArchiveEntry> {
+  const directory = await readDirectory(file, onProgress)
+  onProgress?.({ phase: 'entries', completed: 0, total: directory.offset })
   for (const [index, entry] of directory.entries.entries()) {
     const boundary = directory.entries[index + 1]?.offset ?? directory.offset
     const start = await readEntryOffset(file, entry, boundary)
@@ -270,6 +282,11 @@ export async function* readArchive(file: File): AsyncGenerator<ArchiveEntry> {
           start + offset,
           Math.min(READ_CHUNK_BYTES, entry.compressedSize - offset)
         )
+        onProgress?.({
+          phase: 'entries',
+          completed: start + offset + chunk.length,
+          total: directory.offset,
+        })
         if (!inflate) {
           append(chunk)
           yield* pending.splice(0)
@@ -295,6 +312,7 @@ export async function* readArchive(file: File): AsyncGenerator<ArchiveEntry> {
     if (!completed) {
       invalid()
     }
+    onProgress?.({ phase: 'entries', completed: boundary, total: directory.offset })
   }
 }
 

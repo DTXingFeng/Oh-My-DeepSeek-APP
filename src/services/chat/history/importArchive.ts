@@ -4,6 +4,7 @@ import type { SessionIndexEntry } from './format.js'
 import { INDEX_PATH, MANIFEST_PATH, USER_PATH, parseSessionPath, sessionFilesDir } from './paths.js'
 import { checkManifest, readSessionFile, readSessionIndex } from './schema.js'
 import { toLocalSession } from './toLocal.js'
+import type { OnImportProgress } from './progress.js'
 import {
   ArchiveError,
   isZipFile,
@@ -78,7 +79,7 @@ export const checkArchiveFormat = async (file: File): Promise<void> => {
  * 会话读完立即暂存，只保留图片路径映射；图片全部读完后逐会话回填 MIME，不改变图片身份。
  * 写入导入暂存存储；调用方负责先清空暂存，成功后替换正式数据，失败时清理暂存。
  */
-export const importArchive = async (file: File): Promise<void> => {
+export const importArchive = async (file: File, onProgress?: OnImportProgress): Promise<void> => {
   if (!(await isZipFile(file))) {
     fail('backupUnrecognized')
   }
@@ -102,7 +103,14 @@ export const importArchive = async (file: File): Promise<void> => {
   }
 
   try {
-    for await (const entry of readArchive(file)) {
+    for await (const entry of readArchive(file, (progress) =>
+      onProgress?.({
+        ...progress,
+        phase: progress.phase === 'index' ? 'indexing' : 'importing',
+        sessions: imported.size,
+        images: stored.size,
+      })
+    )) {
       const { path } = entry
       const sessionId = parseSessionPath(path)
       if (!manifest) {
@@ -155,5 +163,12 @@ export const importArchive = async (file: File): Promise<void> => {
   ) {
     fail('backupIncomplete')
   }
+  onProgress?.({
+    phase: 'saving',
+    completed: 0,
+    total: 0,
+    sessions: imported.size,
+    images: stored.size,
+  })
   await db.updateStagingFileTypes(stored)
 }

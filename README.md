@@ -1,11 +1,12 @@
-# Oh-My-DeepSeek-APP
+<h1 align="center">Oh My DeepSeek</h1>
 
-<h1 align="center">Make DeepSeek Great Again!</h1>
-<h3 align="center">让 DeepSeek 再次伟大！</h3>
+<p align="center">
+  <strong>Make DeepSeek Great Again!<br>让 DeepSeek 再次伟大！</strong>
+</p>
 
 <p align="center">在基础对话之上，持续增强 DeepSeek 的使用体验。</p>
 
-## 有什么增强？
+## 功能增强
 
 - **跨对话长记忆**：记住偏好和长期事实，新对话也能接着聊；从相关旧聊天中找回上下文，回答旁可查看来源。
 - **记忆由你掌控**：添加、编辑、忘记、备份记忆，可关闭自动整理，也可让某段对话不参与记忆。

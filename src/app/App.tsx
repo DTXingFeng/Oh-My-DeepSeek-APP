@@ -25,6 +25,7 @@ import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider, useMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import styles from './App.module.css'
+import { bindMemorySettings, initMemory, rebuildHistoryIndex } from '../services/memory/engine.js'
 
 export const App = () => {
   const t = useTranslate()
@@ -51,6 +52,14 @@ export const App = () => {
   const activeId = useChatStore((state) => state.activeId)
 
   usePreventPageScroll(isMobile)
+  useEffect(bindMemorySettings, [])
+  useEffect(() => {
+    if (ready && !importingHistory) {
+      void initMemory()
+        .then(() => rebuildHistoryIndex())
+        .catch(() => {})
+    }
+  }, [ready, importingHistory])
 
   useEffect(() => {
     window.ohMyDeepSeekBack = () => {

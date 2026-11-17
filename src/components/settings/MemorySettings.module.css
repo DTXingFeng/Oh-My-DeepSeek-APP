@@ -1,0 +1,143 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.intro {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  padding: 8px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.toggle small,
+.item small,
+.index small {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.toggle input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+  margin: 8px;
+}
+.index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  font-size: 13px;
+}
+.index > div,
+.index progress,
+.index small {
+  width: 100%;
+}
+.index progress {
+  accent-color: var(--dsw-alias-brand-primary);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.search,
+.editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+}
+.editor {
+  min-height: 150px;
+  resize: vertical;
+  margin-top: 12px;
+}
+.item {
+  padding: 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+}
+.item p {
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.error {
+  color: #bf3434;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.notice button {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  cursor: pointer;
+}
+.sourceDialog {
+  width: 620px;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+.sourceDialog .item {
+  margin-top: 12px;
+}
+.sourceDialog .item p {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 8px;
+}

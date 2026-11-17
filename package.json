@@ -1,11 +1,12 @@
 {
   "name": "oh-my-deepseek-app",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Android client for the official DeepSeek API, based on deepseek-ai/chat-demo.",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test scripts/memory-unit.test.mjs",
     "dev": "rspack serve -c rspack.config.ts",
     "build": "node scripts/build-web.mjs",
     "type": "tsc -p tsconfig.json",

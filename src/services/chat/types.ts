@@ -1,4 +1,5 @@
 import type { TranslationMessage } from '../../i18n/index.js'
+import type { MemorySource } from '../memory/types.js'
 import type { ApiErrorKind } from '../api/client.js'
 import type {
   ChatModel,
@@ -72,6 +73,9 @@ export type ReplyBlock = ThinkingPart | TextPart | ServerToolBlock
 export type ReplyStatus = 'pending' | 'streaming' | 'done' | 'stopped' | 'error'
 
 export type AssistantMessage = MessageBranch & {
+  memorySources?: MemorySource[]
+  memoryStatus?: 'retrieving' | 'ready' | 'disabled' | 'error'
+  memoryUpdate?: 'pending' | 'updated' | 'unchanged' | 'error'
   id: string
   role: 'assistant'
   createdAt: number

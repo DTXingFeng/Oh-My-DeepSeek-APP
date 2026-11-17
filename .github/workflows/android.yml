@@ -24,6 +24,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
       - run: npm run type
       - run: npm run lint
       - run: npm run build

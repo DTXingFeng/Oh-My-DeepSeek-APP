@@ -37,6 +37,7 @@ import { closeSettings, useSettingsDialog, type SettingsSection } from './settin
 import styles from './Settings.module.css'
 import { saveBlob } from '../../services/native.js'
 import type { ImportProgress } from '../../services/chat/history/progress.js'
+import { MemorySettings } from './MemorySettings.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -56,6 +57,7 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
     icon: <IconSettingsOutline16 />,
   },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
+  { value: 'memory', label: 'memorySettings', icon: <IconSettingsOutline16 /> },
 ]
 
 const SettingsContent = ({
@@ -123,6 +125,8 @@ const SettingsContent = ({
               <TtsVoiceSetting />
               <LocationSetting />
             </>
+          ) : section === 'memory' ? (
+            <MemorySettings />
           ) : (
             <>
               <ApiKeyField editor={apiKeyEditor} />

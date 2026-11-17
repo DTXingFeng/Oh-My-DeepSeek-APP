@@ -18,6 +18,9 @@ type Settings = {
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
+  memoryEnabled: boolean
+  memoryHistory: boolean
+  memoryAuto: boolean
 }
 
 const KEYS = {
@@ -29,6 +32,9 @@ const KEYS = {
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
+  memoryEnabled: 'ohmy:memory-enabled',
+  memoryHistory: 'ohmy:memory-history',
+  memoryAuto: 'ohmy:memory-auto',
 } as const
 
 const read = (key: string) => {
@@ -100,11 +106,30 @@ export const useSettings = create<Settings>(() => ({
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
+  memoryEnabled: read(KEYS.memoryEnabled) !== 'false',
+  memoryHistory: read(KEYS.memoryHistory) !== 'false',
+  memoryAuto: read(KEYS.memoryAuto) !== 'false',
 }))
 
 export const setLocale = (locale: Locale) => {
   write(KEYS.locale, locale)
   useSettings.setState({ locale })
+}
+
+export const setMemoryEnabled = (enabled: boolean) => {
+  write(KEYS.memoryEnabled, String(enabled))
+  if (!enabled) {
+    write(KEYS.memoryHistory, 'false')
+  }
+  useSettings.setState({ memoryEnabled: enabled, ...(!enabled ? { memoryHistory: false } : {}) })
+}
+export const setMemoryHistory = (enabled: boolean) => {
+  write(KEYS.memoryHistory, String(enabled))
+  useSettings.setState({ memoryHistory: enabled })
+}
+export const setMemoryAuto = (enabled: boolean) => {
+  write(KEYS.memoryAuto, String(enabled))
+  useSettings.setState({ memoryAuto: enabled })
 }
 
 export const setLocation = (value: UserLocation | null) => {

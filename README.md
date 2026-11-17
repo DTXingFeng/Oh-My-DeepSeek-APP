@@ -13,6 +13,12 @@ Android 个人聊天客户端，直连 **DeepSeek 官方付费 API**。基于官
 
 需要 Android 8.0+ 及较新的 Android System WebView / Chrome（构建目标 Chromium 105+）。默认模型是 `deepseek-flash`，服务器是 `https://api.deepseek.com`，没有本项目运营的中转服务器。
 
+## 跨会话记忆
+
+0.2.0 提供「保存的记忆」与「引用历史聊天」。从输入框的记忆图标进入管理界面，可增删改查、关闭自动整理、排除当前对话，以及导出/导入记忆 JSON。回答旁可查看本轮提供的记忆来源。
+
+旧对话只在本机建立文字检索索引；自动整理新记忆会额外调用 DeepSeek 官方 API，设置中可关闭。原理、费用、删除行为和与 ChatGPT 的区别见 [记忆说明](docs/MEMORY.md)。
+
 ## 数据
 
 - Android 版 API Key 使用 AES-GCM 加密，解密密钥保存在 Android Keystore，网页 localStorage 不保存 API Key。系统云备份和设备迁移均排除应用数据。

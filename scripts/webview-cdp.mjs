@@ -7,12 +7,32 @@ export const adb = (...args) =>
 
 /** Connect only to our debuggable Android app, never to a personal browser. */
 export const connectWebView = async () => {
-  const pid = adb('shell', 'pidof', APP_ID).split(' ')[0]
-  if (!/^\d+$/.test(pid)) throw new Error('Start the debug APK first')
+  let pid
+  for (let attempt = 0; attempt < 40 && !pid; attempt++) {
+    try {
+      const value = adb('shell', 'pidof', APP_ID).split(' ')[0]
+      if (/^\d+$/.test(value)) pid = value
+    } catch {
+      /* Activity launch can return before the Android process becomes visible. */
+    }
+    if (!pid) await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  if (!pid) throw new Error('Start the debug APK first')
   const port = adb('forward', 'tcp:0', `localabstract:webview_devtools_remote_${pid}`)
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json()
-  const target = targets.find((page) => page.url.startsWith('https://app.ohmydeepseek.local/'))
-  if (!target) throw new Error(`App page not found: ${JSON.stringify(targets)}`)
+  let target
+  for (let attempt = 0; attempt < 40 && !target; attempt++) {
+    try {
+      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json()
+      target = targets.find((page) => page.url.startsWith('https://app.ohmydeepseek.local/'))
+    } catch {
+      /* Cold-started WebViews may close the first debugger connection. */
+    }
+    if (!target) await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  if (!target) {
+    adb('forward', '--remove', `tcp:${port}`)
+    throw new Error('App page not ready')
+  }
   const socket = new WebSocket(target.webSocketDebuggerUrl)
   await new Promise((resolve, reject) => {
     socket.addEventListener('open', resolve, { once: true })

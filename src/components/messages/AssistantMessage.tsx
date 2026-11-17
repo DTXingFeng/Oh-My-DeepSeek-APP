@@ -23,6 +23,7 @@ import {
   type SelectMessageVersion,
 } from './BranchSwitcher.js'
 import styles from './AssistantMessage.module.css'
+import { MemoryNotice } from '../memory/MemoryNotice.js'
 
 const TOP_UP_URL = 'https://platform.deepseek.com/top_up'
 
@@ -83,6 +84,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           ))}
         </div>
       ) : null}
+      <MemoryNotice message={message} sessionId={sessionId} />
       {notice?.presentation === 'response' ? (
         <Markdown
           className="ds-assistant-message-main-content"

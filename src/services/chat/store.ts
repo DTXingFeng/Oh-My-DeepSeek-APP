@@ -16,6 +16,16 @@ import {
 } from './drafts.js'
 import { createLatestReminder } from './latestReminder.js'
 import {
+  adoptNewChatMemory,
+  buildMemoryContext,
+  invalidateMemoryHistory,
+  isMemoryExcluded,
+  queueSessionIndex,
+  removeSessionMemoryIndex,
+  shouldExtractMemory,
+  updateMemoryFromTurn,
+} from '../memory/engine.js'
+import {
   applyEvent,
   canContinueReply,
   getContextRounds,
@@ -194,6 +204,7 @@ const persist = (sessionId: string) => {
         if (epoch !== historyEpoch || !getSession(sessionId)) {
           return
         }
+        void queueSessionIndex(session)
         if (pendingFiles.get(sessionId) === files) {
           pendingFiles.delete(sessionId)
         }
@@ -409,6 +420,7 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
     try {
       await write()
       summaries = await db.commitStaging()
+      await invalidateMemoryHistory().catch(() => {})
     } catch (error) {
       await db.clearStaging().catch(db.reportStorageError('clear unfinished history replacement'))
       throw error
@@ -501,6 +513,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
       return false
     }
     await db.deleteSession(id)
+    await removeSessionMemoryIndex(id).catch(() => {})
     if (epoch !== historyEpoch) {
       return true
     }
@@ -572,6 +585,7 @@ export const sendMessage = (targetSessionId: string | null) => {
       rootMessageId: null,
     }
     sessionId = session.id
+    adoptNewChatMemory(session.id)
     touchSession(session.id)
     set((state) => ({
       sessions: [toSessionSummary(session), ...state.sessions],
@@ -982,6 +996,31 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       try {
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
+        const memoryAllowed = useSettings.getState().memoryEnabled && !isMemoryExcluded(sessionId)
+        reply = { ...reply, memoryStatus: memoryAllowed ? 'retrieving' : 'disabled' }
+        updateReply(sessionId, reply)
+        let memoryContext = ''
+        try {
+          const memory = await buildMemoryContext(
+            sessionId,
+            prepared.question.content,
+            controller.signal
+          )
+          memoryContext = memory.context
+          reply = {
+            ...reply,
+            memorySources: memory.sources,
+            memoryStatus:
+              useSettings.getState().memoryEnabled && !isMemoryExcluded(sessionId)
+                ? 'ready'
+                : 'disabled',
+          }
+        } catch (error) {
+          if (controller.signal.aborted) {
+            throw error
+          }
+          reply = { ...reply, memorySources: [], memoryStatus: 'error' }
+        }
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
         const latestReminder = prepared.prefix
           ? prepared.prefix.latestReminder
@@ -1000,7 +1039,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           useSettings.getState().apiKey ?? '',
           {
             model: initial.model ?? MODEL,
-            system: SYSTEM_PROMPT,
+            system: SYSTEM_PROMPT + memoryContext,
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             safety_check: SAFETY_CHECK,
@@ -1090,5 +1129,51 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+    if (
+      !request.prefix &&
+      reply.status === 'done' &&
+      reply.stopReason !== 'refusal' &&
+      useSettings.getState().memoryEnabled &&
+      useSettings.getState().memoryAuto &&
+      !isMemoryExcluded(sessionId) &&
+      shouldExtractMemory(request.question.content)
+    ) {
+      startMemoryUpdate(sessionId, reply.id, request.question.id, request.question.content)
+    }
+  }
+}
+
+const startMemoryUpdate = (
+  sessionId: string,
+  replyId: string,
+  questionId: string,
+  text: string
+) => {
+  const patch = (memoryUpdate: AssistantMessage['memoryUpdate']) => {
+    updateSession(sessionId, (session) => ({
+      ...session,
+      messages: session.messages.map((message) =>
+        message.id === replyId && message.role === 'assistant'
+          ? { ...message, memoryUpdate }
+          : message
+      ),
+    }))
+    persist(sessionId)
+  }
+  patch('pending')
+  void updateMemoryFromTurn(sessionId, questionId, text)
+    .then(patch)
+    .catch(() => patch('error'))
+}
+
+export const retryMemoryUpdate = (sessionId: string, replyId: string) => {
+  const session = getSession(sessionId)
+  if (!session || get().importingHistory || isMemoryExcluded(sessionId)) {
+    return
+  }
+  const reply = session.messages.find((message) => message.id === replyId)
+  const question = session.messages.find((message) => message.id === reply?.parentId)
+  if (reply?.role === 'assistant' && reply.memoryUpdate === 'error' && question?.role === 'user') {
+    startMemoryUpdate(sessionId, replyId, question.id, question.content)
   }
 }

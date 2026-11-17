@@ -1,4 +1,4 @@
-<h1 align="center">Oh My DeepSeek</h1>
+<h1 align="center">Oh My DeepSeek APP</h1>
 
 <p align="center">
   <strong>Make DeepSeek APP Great Again!<br>让 DeepSeek APP 再次伟大！</strong>

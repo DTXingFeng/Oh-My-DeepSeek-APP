@@ -1,7 +1,7 @@
 <h1 align="center">Oh My DeepSeek</h1>
 
 <p align="center">
-  <strong>Make DeepSeek Great Again!<br>让 DeepSeek 再次伟大！</strong>
+  <strong>Make DeepSeek APP Great Again!<br>让 DeepSeek APP 再次伟大！</strong>
 </p>
 
 <p align="center">在基础对话之上，持续增强 DeepSeek 的使用体验。</p>

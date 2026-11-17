@@ -4,8 +4,11 @@ import { setupTheme } from './app/theme.js'
 import { ensureKatex } from './services/markdown/katex.js'
 import './app/theme.css'
 import './app/global.css'
+import { setupNativeLinks } from './services/native.js'
+import { showToast } from './components/base/toastState.js'
 
 ensureKatex()
 setupTheme()
+setupNativeLinks(showToast)
 
 createRoot(document.getElementById('root') as HTMLElement).render(<App />)

@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.ohmydeepseek.android'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'app.ohmydeepseek.android'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/webAssets')
+}
+
+def syncWebAssets = tasks.register('syncWebAssets', Sync) {
+    from(rootProject.file('../dist'))
+    into(layout.buildDirectory.dir('generated/webAssets/web'))
+    doFirst {
+        if (!rootProject.file('../dist/index.html').exists()) {
+            throw new GradleException('Run npm run build from the repository root before building the APK.')
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn(syncWebAssets) }

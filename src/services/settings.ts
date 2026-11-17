@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
 import { normalizeLocation, type UserLocation } from './location.js'
+import { nativeBridge } from './native.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -32,6 +33,9 @@ const KEYS = {
 
 const read = (key: string) => {
   try {
+    if (key === KEYS.apiKey && nativeBridge) {
+      return nativeBridge.readApiKey() ?? null
+    }
     return localStorage.getItem(key)
   } catch {
     return null
@@ -120,7 +124,14 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
 }
 
 export const setApiKey = (apiKey: string | null) => {
-  write(KEYS.apiKey, apiKey)
+  if (nativeBridge) {
+    if (!nativeBridge.writeApiKey(apiKey)) {
+      throw new Error('无法将 API Key 保存到 Android 安全存储，请重试。')
+    }
+    localStorage.removeItem(KEYS.apiKey)
+  } else {
+    write(KEYS.apiKey, apiKey)
+  }
   useSettings.setState({ apiKey })
 }
 

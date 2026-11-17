@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { useSettings, type ThemePreference } from '../services/settings.js'
+import { nativeBridge } from '../services/native.js'
 
 export type Theme = 'light' | 'dark'
 
@@ -30,6 +31,7 @@ const syncPageBackground = () => {
 
 /** 同步页面主题、根画布背景和支持 theme-color 的浏览器栏。 */
 const applyTheme = (theme: Theme) => {
+  nativeBridge?.setDarkMode(theme === 'dark')
   const body = document.body
   // 主题切换帧禁用过渡，使页面颜色同步更新
   body.classList.add('change-theme')

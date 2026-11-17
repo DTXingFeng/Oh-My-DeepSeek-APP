@@ -35,6 +35,7 @@ import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
+import { saveBlob } from '../../services/native.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -96,6 +97,19 @@ const SettingsContent = () => {
         <div role="tabpanel" className={styles.content}>
           {section === 'general' ? (
             <>
+              <SettingCell
+                label="Oh My DeepSeek"
+                description={t('appDescription')}
+                status={null}
+                action={
+                  <span>
+                    v
+                    {document
+                      .querySelector('meta[name="application-version"]')
+                      ?.getAttribute('content') ?? '0.1.0'}
+                  </span>
+                }
+              />
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
@@ -524,12 +538,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     setStatus(null)
     try {
       const { name, blob } = await exportHistory()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = name
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      await saveBlob(name, blob)
     } catch (error) {
       setStatus(errorStatus('historyExportFailed', error))
     } finally {

@@ -144,6 +144,10 @@ export const useVoiceInput = (onText: (text: string) => void) => {
   }, [status])
 
   useEffect(() => cancelOperation, [cancelOperation])
+  useEffect(() => {
+    window.addEventListener('ohmydeepseek-background', cancel)
+    return () => window.removeEventListener('ohmydeepseek-background', cancel)
+  }, [cancel])
 
   /** 当前录音的频谱分析节点，未录音时为 null */
   const getAnalyser = useCallback(() => recordingRef.current?.analyser ?? null, [])

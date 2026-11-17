@@ -14,7 +14,8 @@ export const en = {
     'Chats or attachments have not been saved locally. Retry before closing this page.',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
-  appName: 'API usage demo',
+  appName: 'Oh My DeepSeek',
+  appDescription: 'Independent client using the paid official DeepSeek API. No client daily quota, 40,000-character cap or seven-day chat expiry. API limits still apply. Chats stay on this device; export before uninstalling.',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',

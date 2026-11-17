@@ -1,75 +1,58 @@
-# chat-demo
+# Oh-My-DeepSeek-APP
 
-English | [简体中文](README.zh-CN.md)
+Android 个人聊天客户端，直连 **DeepSeek 官方付费 API**。基于官方 MIT 开源 [chat-demo](https://github.com/deepseek-ai/chat-demo)，将完整前端打包进 APK，提供 Android 文件、麦克风、密钥保存与返回键适配。详见 [来源说明](NOTICE.md)。
 
-A static chat demo powered by the DeepSeek API. No application backend is required: the browser connects directly to the configured API service.
+客户端不设每日聊天额度、4 万字输入上限或七天会话失效规则。API 本身的计费、上下文、文件与服务端限制仍然适用：[具体边界与核查来源](docs/LIMITS.md)。
 
-You can [try the app online](https://deepseek-ai.github.io/chat-demo/) or download the archive from [Releases](https://github.com/deepseek-ai/deepseek-chat-demo/releases), extract it, and double-click `index.html` to use it locally without installation or a build. Enter your API key in Settings before your first chat.
+## 使用
 
-## Getting started
+1. 安装构建得到的 APK，打开 **Oh My DeepSeek**。
+2. 在首次出现的「设置 → 数据管理」输入你自己的 DeepSeek API Key。应用先通过 `GET /models` 验证密钥，再保存。
+3. 开始对话，可以切换深度思考和智能搜索，添加文件、图片，使用语音输入或朗读。
+4. 对话保存在本机；卸载前在「设置 → 数据管理」导出 ZIP。导入历史会替换现有本地历史，应用会先显示确认。
 
-Install Node.js 22.12+ and pnpm, then run:
+需要 Android 8.0+ 及较新的 Android System WebView / Chrome（构建目标 Chromium 105+）。默认模型是 `deepseek-flash`，服务器是 `https://api.deepseek.com`，没有本项目运营的中转服务器。
 
-```sh
-git clone https://github.com/deepseek-ai/chat-demo.git
-cd chat-demo
-pnpm install
-pnpm dev
+## 数据
+
+- Android 版 API Key 使用 AES-GCM 加密，解密密钥保存在 Android Keystore，网页 localStorage 不保存 API Key。系统云备份和设备迁移均排除应用数据。
+- 对话和附件保存在应用私有 WebView 数据目录。发送、上传、搜索及语音功能会把所需内容发给 DeepSeek 官方服务。
+- 没有内置 API Key。API Key 不包含在历史导出或 APK 中。
+- 浏览器开发版沿用上游的 localStorage 密钥存储方式；Android 版使用原生加密存储。
+
+## 构建
+
+环境：Node.js 24、JDK 21、Android SDK Platform 35。项目包含 Gradle 8.11.1 Wrapper，使用 AGP 8.7.2。
+
+```powershell
+npm ci --ignore-scripts --no-audit --no-fund
+npm run type
+npm run lint
+npm run build
+
+# 在 android/local.properties 写入本机路径，或配置 ANDROID_HOME
+# sdk.dir=C:/Users/yourname/AppData/Local/Android/Sdk
+cd android
+.\gradlew.bat assembleDebug lintDebug
 ```
 
-Open http://localhost:8090.
+APK：`android/app/build/outputs/apk/debug/app-debug.apk`。这是开发调试签名，正式分发前需要自有签名密钥。GitHub Actions 会运行构建和静态检查，保存 APK artifact。
 
-To build the static site:
+开发网页：`npm run dev`，访问 `http://localhost:8090`。Android 构建自动将 `dist/` 同步到 APK 资源，不加载线上网页。
 
-```sh
-pnpm build
+## 虚拟机检查
+
+```powershell
+adb connect 127.0.0.1:5555
+adb -s 127.0.0.1:5555 install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb -s 127.0.0.1:5555 shell am start -n app.ohmydeepseek.android/.MainActivity
+node scripts/android-smoke.mjs
 ```
 
-The output is written to `dist/`. Deploy it to a static web server or open `dist/index.html` directly. Opening the file directly requires browser support for storage on `file://` pages and an API service that permits their cross-origin requests.
+验收脚本只能用于**没有真实密钥、没有历史对话的调试安装**，使用本地模拟 SSE 响应验证客户端并清理自己的测试记录，不调用收费模型接口。可通过 `ANDROID_SERIAL` 指定虚拟机。它验证客户端行为，不能证明官方模型实际回答质量。
 
-## Features
+实际测试范围、未验收项见 [验证记录](docs/VALIDATION.md)。
 
-- Multiple conversations with automatic titles, renaming, and deletion; edit prompts, regenerate replies, and switch between message branches.
-- Streaming replies, deep thinking, smart search, link reading, and source citations; stop generation or continue eligible replies.
-- Upload, paste, or drag and drop attachments; use voice input and read replies aloud. A live audio spectrum appears in the first row of the input area while recording on mobile.
-- Markdown, syntax highlighting, KaTeX math, and Mermaid diagrams.
-- Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history import and export.
+## 许可证
 
-## Data and storage
-
-Your API key and settings are stored in the browser's localStorage. Conversations and original attachments are stored in IndexedDB. Local data is isolated by browser profile and site origin. Sending messages, uploading attachments, and using speech features sends the relevant content to the configured API service.
-
-History import and export in Settings use ZIP archives. After confirmation and successful validation, importing replaces all local conversations and attachments. Exports include conversations and locally available original images, but exclude API keys, settings, and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
-
-Settings → Data → Delete all chats clears all local conversations, original attachments, and unsent drafts after confirmation. It stops ongoing replies and returns to a new chat. Your API key and settings are preserved; files already uploaded to the API service are not deleted.
-
-## Development
-
-| Command       | Description                  |
-| ------------- | ---------------------------- |
-| `pnpm dev`    | Start the development server |
-| `pnpm build`  | Build into `dist/`           |
-| `pnpm type`   | Run TypeScript type checks   |
-| `pnpm lint`   | Lint with oxlint             |
-| `pnpm format` | Format with oxfmt            |
-
-[rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
-
-Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
-
-```text
-src/
-  app/                 Application layout, themes, and global styles
-  components/          Chat, settings, Markdown, and other UI components
-  i18n/                English and Chinese translations
-  services/
-    api/               API requests, SSE, and protocol types
-    chat/              Conversations, message branches, storage, and history import/export
-    markdown/          Markdown parsing, syntax highlighting, and diagrams
-    speech/            Audio recording and read-aloud playback
-  utils/               Shared utilities
-```
-
-## License
-
-[MIT](LICENSE). The build copies the license to `dist/LICENSE`; include it when distributing the app. Third-party dependencies are subject to their own licenses.
+[MIT](LICENSE)。保留上游版权，第三方依赖遵守各自许可证。

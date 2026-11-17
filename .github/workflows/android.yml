@@ -1,0 +1,37 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run type
+      - run: npm run lint
+      - run: npm run build
+      - name: Build and check Android
+        working-directory: android
+        run: bash gradlew assembleDebug lintDebug --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Oh-My-DeepSeek-APP-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -9,3 +9,10 @@ build/
 .env.*
 !.env.example
 tmp/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/web/
+*.jks
+*.keystore
+outputs/
+evidence/local/

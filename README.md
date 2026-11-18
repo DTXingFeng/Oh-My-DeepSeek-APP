@@ -27,6 +27,12 @@
 
 直连 **DeepSeek 官方付费 API**，计费和服务端限制仍然适用；自动整理记忆会产生额外用量，可关闭。聊天与记忆保存在本机，使用时将所需内容发送给 DeepSeek。卸载前请导出备份。
 
+## 一起开发
+
+欢迎一起改进 Oh My DeepSeek APP！想加功能、遇到 Bug，或有哪里用着不顺手，都可以来聊聊。[提交 Issue](https://github.com/DTXingFeng/Oh-My-DeepSeek-APP/issues)
+
+修 Bug、改界面、补文档都欢迎。小改动可以直接提 PR，较大的功能可以先开个 Issue 一起讨论。[提交 Pull Request](https://github.com/DTXingFeng/Oh-My-DeepSeek-APP/pulls)
+
 ## 了解更多
 
 [记忆说明](docs/MEMORY.md) · [接口与限制](docs/LIMITS.md) · [构建与开发](docs/DEVELOPMENT.md) · [验证记录](docs/VALIDATION.md)

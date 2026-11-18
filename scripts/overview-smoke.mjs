@@ -33,11 +33,24 @@ const saved = () =>
   )
 const openMemory = async () => {
   await cdp.evaluate(`document.querySelector('button[aria-label*="管理记忆"]').click()`)
-  await wait(`document.body.innerText.includes('记忆摘要')`)
+  await wait(`!!document.querySelector('[data-memory-overview]')`)
 }
 const openSummary = async () => {
   await cdp.evaluate(`document.querySelector('button[aria-label="查看记忆摘要"]').click()`)
+  await wait(`!!document.querySelector('[data-memory-overview]')`)
+  await cdp.evaluate(`document.querySelector('[data-memory-overview] details').open=true`)
   await wait(`!!document.querySelector('textarea[aria-label="告诉我需要改什么"]')`)
+}
+const view = async (name) => {
+  await cdp.evaluate(`document.querySelector('[data-memory-tab="${name}"]').click()`)
+  await delay(50)
+}
+const entryAction = async (text, label) => {
+  await cdp.evaluate(
+    `[...document.querySelectorAll('[data-memory-overview] article')].find(e=>e.textContent.includes(${JSON.stringify(text)})).querySelector('button[aria-haspopup="menu"]').click()`
+  )
+  await wait(`!!document.querySelector('[role="menu"]')`)
+  await click(label)
 }
 const screenshot = async (name) => {
   const r = await cdp.send('Page.captureScreenshot', { format: 'png' })
@@ -90,7 +103,7 @@ try {
     )
   )
   check('local summary is grouped immediately without any model calls')
-  await click('智能整理摘要')
+  await click('智能整理')
   await wait(`document.body.innerText.includes('摘要已整理')`)
   assert.equal((await saved()).filter((memory) => memory.overview).length, 3)
   check('model organization is validated and stored with original source mappings')
@@ -102,16 +115,14 @@ try {
   })
   await delay(3100)
   await screenshot('mobile')
-  await cdp.evaluate(
-    `[...document.querySelector('textarea[aria-label="告诉我需要改什么"]').closest('[role="dialog"]').querySelectorAll('article')].find(e=>e.textContent.includes('中文简短')).querySelectorAll('button')[1].click()`
-  )
+  await entryAction('中文简短', '编辑记忆')
   await wait(`!!document.querySelector('textarea[aria-label="记忆内容"]')`)
   await input('textarea[aria-label="记忆内容"]', '用户偏好中文简短回答，先给结论。')
   await click('保存记忆')
   await wait(`!document.querySelector('textarea[aria-label="记忆内容"]')`)
   assert.ok(
     await cdp.evaluate(
-      `document.querySelector('textarea[aria-label="告诉我需要改什么"]').closest('[role="dialog"]').textContent.includes('先给结论')`
+      `document.querySelector('[data-memory-overview]').textContent.includes('先给结论')`
     )
   )
   assert.equal(await cdp.evaluate('window.__overviewCalls.length'), 1)
@@ -129,7 +140,7 @@ try {
   )
   check('reviewed corrections update actual memory instead of only changing summary wording')
   await cdp.evaluate(
-    `(()=>{const p=[...document.querySelector('textarea[aria-label="告诉我需要改什么"]').closest('[role="dialog"]').querySelectorAll('article p')].find(p=>p.textContent.includes('北京'));const range=document.createRange();range.selectNodeContents(p);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);p.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));})()`
+    `(()=>{const p=[...document.querySelector('[data-memory-overview]').querySelectorAll('article p')].find(p=>p.textContent.includes('北京'));const range=document.createRange();range.selectNodeContents(p);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);p.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));})()`
   )
   await wait(`document.body.innerText.includes('纠正选中文字')`)
   await input('textarea[aria-label="告诉我需要改什么"]', '我住北京，保持这个信息。')
@@ -141,12 +152,9 @@ try {
   )
   check('highlighted-text corrections only send the selected original memories')
   await click('取消')
-  await cdp.evaluate(
-    `[...document.querySelector('textarea[aria-label="告诉我需要改什么"]').closest('[role="dialog"]').querySelectorAll('article')].find(e=>e.textContent.includes('北京')).querySelectorAll('button')[2].click()`
-  )
+  await entryAction('北京', '不再提起')
   await wait(`document.body.innerText.includes('不再提起的记忆（1）')`)
   assert.equal((await saved()).find((memory) => memory.id === 'location').muted, true)
-  await cdp.evaluate('window.ohMyDeepSeekBack()')
   await cdp.evaluate('window.ohMyDeepSeekBack()')
   const before = await cdp.evaluate('window.__mainCalls.length')
   await input('textarea', '我住哪里？')
@@ -174,7 +182,7 @@ try {
 
   await cdp.evaluate('window.__mode="bad"')
   const snapshot = JSON.stringify((await saved()).map(({ id, text }) => ({ id, text })))
-  await click('智能整理摘要')
+  await click('智能整理')
   await wait(`document.body.innerText.includes('整理失败')`)
   assert.equal(JSON.stringify((await saved()).map(({ id, text }) => ({ id, text }))), snapshot)
   check('unknown source IDs or malformed model summaries leave original memories untouched')
@@ -182,9 +190,7 @@ try {
   await input('textarea[aria-label="告诉我需要改什么"]', '我还是住在北京。')
   await click('预览修改')
   await wait(`document.body.innerText.includes('核对修改内容')`)
-  await cdp.evaluate(
-    `[...document.querySelector('textarea[aria-label="告诉我需要改什么"]').closest('[role="dialog"]').querySelectorAll('article')].find(e=>e.textContent.includes('北京')).querySelectorAll('button')[1].click()`
-  )
+  await entryAction('北京', '编辑记忆')
   await wait(`!!document.querySelector('textarea[aria-label="记忆内容"]')`)
   await input('textarea[aria-label="记忆内容"]', '用户现在居住在深圳。')
   await click('保存记忆')
@@ -208,9 +214,9 @@ try {
   await screenshot('dark-narrow')
   check('the summary is scrollable at 320 px and supports dark mode')
   await cdp.evaluate(`window.__mode='held'`)
-  await click('智能整理摘要')
+  await click('智能整理')
   await wait('window.__waiting===true')
-  await cdp.evaluate('window.ohMyDeepSeekBack()')
+  await view('preferences')
   await click('清空保存的记忆')
   await click('删除')
   await wait(`document.querySelectorAll('[role="dialog"]').length===1`)
@@ -218,10 +224,12 @@ try {
   await delay(200)
   assert.equal((await saved()).length, 0)
   check('clearing while a summary request is pending cannot resurrect deleted memory')
+  await view('items')
   await click('添加记忆')
   await input('textarea[aria-label="记忆内容"]', '用户偏好蓝色主题。')
   await click('保存记忆')
   await wait(`!document.querySelector('textarea[aria-label="记忆内容"]')`)
+  await view('preferences')
   await cdp.evaluate(
     `(()=>{const data=new DataTransfer();data.items.add(new File([JSON.stringify({format:'ohmy-deepseek-memory',version:2,saved:[{text:'用户不希望主动提起人工测试花园。',muted:true}],excluded:[]})],'summary-backup.json',{type:'application/json'}));const input=document.querySelector('input[accept=".json,application/json"]');input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`
   )
@@ -237,12 +245,13 @@ try {
   check('reload restores the summary and muted state locally without a model call')
   await cdp.evaluate(`document.querySelector('details:last-child').open=true`)
   await click('删除并关闭记忆')
-  await wait(`document.querySelectorAll('[role="dialog"]').length===3`)
+  await wait(`document.querySelectorAll('[role="dialog"]').length===2`)
   await cdp.evaluate(
     `[...document.querySelectorAll('button')].filter(b=>b.textContent.trim()==='删除并关闭记忆').at(-1).click()`
   )
   await wait(`document.querySelectorAll('[role="dialog"]').length===1`)
   assert.equal((await saved()).length, 0)
+  await view('preferences')
   assert.equal(
     await cdp.evaluate(`document.querySelector('input[aria-label="使用保存的记忆"]').checked`),
     false

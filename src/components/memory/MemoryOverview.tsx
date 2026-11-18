@@ -20,6 +20,7 @@ import type {
 import { Modal } from '../base/Modal.js'
 import { Button } from '../base/Button.js'
 import { showToast } from '../base/toastState.js'
+import { MemoryActions } from './MemoryActions.js'
 import styles from './MemoryOverview.module.css'
 
 const categoryLabels: Record<OverviewCategory, TranslationKey> = {
@@ -44,10 +45,10 @@ export const MemoryOverview = ({
   const locale = useSettings((state) => state.locale)
   const entries = buildMemoryOverview(saved)
   const muted = saved.filter((memory) => memory.muted)
-  const [open, setOpen] = useState(false)
   const [sources, setSources] = useState<string[] | null>(null)
   const [selection, setSelection] = useState<{ text: string; ids: string[] } | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [correcting, setCorrecting] = useState(false)
   const [proposal, setProposal] = useState<MemoryCorrection | null>(null)
   const [busy, setBusy] = useState<'generate' | 'correct' | 'save' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,9 +57,6 @@ export const MemoryOverview = ({
   const correctionInput = useRef<HTMLTextAreaElement>(null)
   useEffect(() => () => controller.current?.abort(), [])
   useEffect(() => {
-    if (!open) {
-      return
-    }
     const capture = () => {
       const value = window.getSelection()
       const text = value?.toString().trim()
@@ -81,17 +79,7 @@ export const MemoryOverview = ({
     }
     document.addEventListener('selectionchange', capture)
     return () => document.removeEventListener('selectionchange', capture)
-  }, [open])
-  const close = () => {
-    if (busy === 'save') {
-      return
-    }
-    controller.current?.abort()
-    setOpen(false)
-    setProposal(null)
-    setSelection(null)
-    setError(null)
-  }
+  }, [])
   const run = async (
     kind: 'generate' | 'correct' | 'save',
     action: (signal: AbortSignal) => Promise<unknown>
@@ -143,46 +131,22 @@ export const MemoryOverview = ({
   const generatedAt = Math.max(0, ...saved.map((memory) => memory.overview?.generatedAt ?? 0))
   return (
     <>
-      <button
-        type="button"
-        className={styles.card}
-        aria-label={t('overviewOpen')}
-        onClick={() => {
-          setOpen(true)
-          setError(null)
-        }}
-      >
-        <span className={styles.cardHeading}>
-          {t('overviewTitle')}
-          <span aria-hidden="true">↗</span>
-        </span>
-        <span className={styles.cardDescription}>{t('overviewDescription')}</span>
-        <span className={styles.preview}>
-          {entries.length
-            ? entries
-                .slice(0, 2)
-                .map((entry) => entry.text)
-                .join(' · ')
-            : t('overviewEmpty')}
-        </span>
-        <span className={styles.cardFooter}>
-          {t('overviewCount', { count: saved.length - muted.length, muted: muted.length })}
-          <span>{t('overviewReview')}</span>
-        </span>
-      </button>
-      {open ? (
-        <Modal
-          title={t('overviewTitle')}
-          closable
-          className={styles.dialog}
-          mainClassName={styles.dialogMain}
-          onClose={close}
-        >
-          <div className={styles.header}>
-            <div>
-              <span className={styles.eyebrow}>ABOUT YOU</span>
-              <p>{t('overviewIntroduction')}</p>
-            </div>
+      <section className={styles.inline} data-memory-overview>
+        <div className={styles.header}>
+          <div>
+            <p>{t('overviewCount', { count: saved.length - muted.length, muted: muted.length })}</p>
+            {generatedAt ? (
+              <small>
+                {t('overviewGeneratedAt', {
+                  time: new Date(generatedAt).toLocaleTimeString(locale, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                })}
+              </small>
+            ) : null}
+          </div>
+          <div className={styles.organize}>
             <Button
               size="s"
               variant="outlined"
@@ -196,46 +160,43 @@ export const MemoryOverview = ({
             >
               {t(busy === 'generate' ? 'overviewGenerating' : 'overviewGenerate')}
             </Button>
+            <small>{t('overviewGenerateNote')}</small>
           </div>
-          {!enabled ? <p className={styles.info}>{t('overviewDisabled')}</p> : null}
-          <div className={styles.meta}>
-            {t('overviewCount', { count: saved.length - muted.length, muted: muted.length })}
-            {generatedAt
-              ? ` · ${t('overviewGeneratedAt', { time: new Date(generatedAt).toLocaleString(locale) })}`
-              : ''}
+        </div>
+        {!enabled ? <p className={styles.info}>{t('overviewDisabled')}</p> : null}
+        {error ? (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        ) : null}
+        {busy === 'generate' || busy === 'correct' ? (
+          <div className={styles.working} role="status">
+            {t(busy === 'generate' ? 'overviewGenerating' : 'overviewCorrecting')}
+            <button type="button" onClick={() => controller.current?.abort()}>
+              {t('overviewCancelTask')}
+            </button>
           </div>
-          {error ? (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          ) : null}
-          {busy === 'generate' || busy === 'correct' ? (
-            <div className={styles.working} role="status">
-              {t(busy === 'generate' ? 'overviewGenerating' : 'overviewCorrecting')}
-              <button type="button" onClick={() => controller.current?.abort()}>
-                {t('overviewCancelTask')}
-              </button>
-            </div>
-          ) : null}
-          {!entries.length ? (
-            <div className={styles.empty}>
-              <p>{t('overviewEmpty')}</p>
-              <Button size="s" onClick={onAdd}>
-                {t('memoryAdd')}
-              </Button>
-            </div>
-          ) : null}
-          {categories.map((category) => {
-            const grouped = entries.filter((entry) => entry.category === category)
-            return grouped.length ? (
-              <section
-                key={category}
-                className={styles.section}
-                aria-label={t(categoryLabels[category])}
-              >
-                <h3>{t(categoryLabels[category])}</h3>
-                {grouped.map((entry) => (
-                  <article className={styles.entry} key={entry.sourceIds.join(':')}>
+        ) : null}
+        {!entries.length ? (
+          <div className={styles.empty}>
+            <p>{t('overviewEmpty')}</p>
+            <Button size="s" onClick={onAdd}>
+              {t('memoryAdd')}
+            </Button>
+          </div>
+        ) : null}
+        {categories.map((category) => {
+          const grouped = entries.filter((entry) => entry.category === category)
+          return grouped.length ? (
+            <section
+              key={category}
+              className={styles.section}
+              aria-label={t(categoryLabels[category])}
+            >
+              <h3>{t(categoryLabels[category])}</h3>
+              {grouped.map((entry) => (
+                <article className={styles.entry} key={entry.sourceIds.join(':')}>
+                  <div className={styles.entryText}>
                     <p
                       data-overview-ids={JSON.stringify(entry.sourceIds)}
                       onMouseUp={(event) => captureSelection(event.currentTarget, entry.sourceIds)}
@@ -247,39 +208,55 @@ export const MemoryOverview = ({
                       <button type="button" onClick={() => setSources(entry.sourceIds)}>
                         {t('overviewSources', { count: entry.sourceIds.length })}
                       </button>
-                      <button
-                        type="button"
+                      <MemoryActions
                         disabled={!!busy}
-                        onClick={() => {
-                          const item = saved.find((memory) => memory.id === entry.sourceIds[0])
-                          if (entry.sourceIds.length === 1 && item) {
-                            onEdit(item)
-                          } else {
-                            setSources(entry.sourceIds)
-                          }
-                        }}
-                      >
-                        {t('memoryEdit')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!!busy}
-                        onClick={() => void run('save', () => muteMemories(entry.sourceIds, true))}
-                      >
-                        {t('overviewMute')}
-                      </button>
+                        actions={[
+                          {
+                            label: t('memoryEdit'),
+                            onSelect: () => {
+                              const item = saved.find((memory) => memory.id === entry.sourceIds[0])
+                              if (entry.sourceIds.length === 1 && item) {
+                                onEdit(item)
+                              } else {
+                                setSources(entry.sourceIds)
+                              }
+                            },
+                          },
+                          {
+                            label: t('overviewMute'),
+                            onSelect: () =>
+                              void run('save', () => muteMemories(entry.sourceIds, true)),
+                          },
+                        ]}
+                      />{' '}
                       {selection?.ids[0] === entry.sourceIds[0] ? (
-                        <button type="button" onClick={() => correctionInput.current?.focus()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCorrecting(true)
+                            requestAnimationFrame(() => correctionInput.current?.focus())
+                          }}
+                        >
                           {t('overviewCorrectSelection')}
                         </button>
                       ) : null}
                     </div>
-                  </article>
-                ))}
-              </section>
-            ) : null
-          })}
-          <div className={styles.correction}>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : null
+        })}
+        <details
+          className={styles.correction}
+          open={correcting}
+          onToggle={(event) => setCorrecting(event.currentTarget.open)}
+        >
+          <summary>
+            {t('memoryCorrectOrAdd')}
+            <span aria-hidden="true">＋</span>
+          </summary>
+          <div className={styles.correctionBody}>
             <h3>{t('overviewCorrectionTitle')}</h3>
             {selection ? (
               <div className={styles.selection}>
@@ -323,91 +300,91 @@ export const MemoryOverview = ({
               </Button>
             </div>
           </div>
-          {proposal ? (
-            <div className={styles.proposal}>
-              <h3>{t('overviewReviewChanges')}</h3>
-              <p className={styles.help}>{t('overviewChangesNotSaved')}</p>
-              {proposal.changes.map((change, index) => (
-                <div className={styles.change} key={change.id ?? index}>
-                  {change.id ? (
-                    <>
-                      <small>{t('overviewBefore')}</small>
-                      <p>{saved.find((memory) => memory.id === change.id)?.text}</p>
-                    </>
-                  ) : null}
-                  <small>{t(change.id ? 'overviewAfter' : 'overviewAdded')}</small>
-                  <p>{change.text}</p>
-                </div>
-              ))}
-              {proposal.forget.map((id) => (
-                <div className={styles.change} key={id}>
-                  <small>{t('overviewWillForget')}</small>
-                  <p>{saved.find((memory) => memory.id === id)?.text}</p>
-                </div>
-              ))}
-              {!proposal.changes.length && !proposal.forget.length ? (
-                <p>{t('overviewNoChanges')}</p>
-              ) : (
-                <div className={styles.buttons}>
-                  <Button
-                    size="s"
-                    variant="outlined"
-                    disabled={!!busy}
-                    onClick={() => setProposal(null)}
-                  >
-                    {t('cancel')}
-                  </Button>
-                  <Button
-                    size="s"
-                    disabled={!!busy}
-                    onClick={() =>
-                      void run('save', async () => {
-                        await applyReviewedMemoryCorrection(proposal)
-                        setProposal(null)
-                        setInstruction('')
-                        setSelection(null)
-                        showToast(t('overviewApplied'))
-                      })
-                    }
-                  >
-                    {t('overviewApplyChanges')}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : null}
-          {muted.length ? (
-            <details className={styles.muted}>
-              <summary>{t('overviewMutedCount', { count: muted.length })}</summary>
-              <p className={styles.help}>{t('overviewMutedHelp')}</p>
-              {muted.map((memory) => (
-                <div className={styles.mutedItem} key={memory.id}>
-                  <p>{memory.text}</p>
-                  <Button
-                    size="s"
-                    variant="outlined"
-                    disabled={!!busy}
-                    onClick={() => void run('save', () => muteMemories([memory.id], false))}
-                  >
-                    {t('overviewRestore')}
-                  </Button>
-                </div>
-              ))}
-            </details>
-          ) : null}
-          <details className={styles.more}>
-            <summary>{t('overviewMore')}</summary>
-            <button
-              type="button"
-              className={styles.danger}
-              disabled={!!busy}
-              onClick={() => setDeleting(true)}
-            >
-              {t('overviewDeleteOff')}
-            </button>
+        </details>
+        {proposal ? (
+          <div className={styles.proposal}>
+            <h3>{t('overviewReviewChanges')}</h3>
+            <p className={styles.help}>{t('overviewChangesNotSaved')}</p>
+            {proposal.changes.map((change, index) => (
+              <div className={styles.change} key={change.id ?? index}>
+                {change.id ? (
+                  <>
+                    <small>{t('overviewBefore')}</small>
+                    <p>{saved.find((memory) => memory.id === change.id)?.text}</p>
+                  </>
+                ) : null}
+                <small>{t(change.id ? 'overviewAfter' : 'overviewAdded')}</small>
+                <p>{change.text}</p>
+              </div>
+            ))}
+            {proposal.forget.map((id) => (
+              <div className={styles.change} key={id}>
+                <small>{t('overviewWillForget')}</small>
+                <p>{saved.find((memory) => memory.id === id)?.text}</p>
+              </div>
+            ))}
+            {!proposal.changes.length && !proposal.forget.length ? (
+              <p>{t('overviewNoChanges')}</p>
+            ) : (
+              <div className={styles.buttons}>
+                <Button
+                  size="s"
+                  variant="outlined"
+                  disabled={!!busy}
+                  onClick={() => setProposal(null)}
+                >
+                  {t('cancel')}
+                </Button>
+                <Button
+                  size="s"
+                  disabled={!!busy}
+                  onClick={() =>
+                    void run('save', async () => {
+                      await applyReviewedMemoryCorrection(proposal)
+                      setProposal(null)
+                      setInstruction('')
+                      setSelection(null)
+                      showToast(t('overviewApplied'))
+                    })
+                  }
+                >
+                  {t('overviewApplyChanges')}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {muted.length ? (
+          <details className={styles.muted}>
+            <summary>{t('overviewMutedCount', { count: muted.length })}</summary>
+            <p className={styles.help}>{t('overviewMutedHelp')}</p>
+            {muted.map((memory) => (
+              <div className={styles.mutedItem} key={memory.id}>
+                <p>{memory.text}</p>
+                <Button
+                  size="s"
+                  variant="outlined"
+                  disabled={!!busy}
+                  onClick={() => void run('save', () => muteMemories([memory.id], false))}
+                >
+                  {t('overviewRestore')}
+                </Button>
+              </div>
+            ))}
           </details>
-        </Modal>
-      ) : null}
+        ) : null}
+        <details className={styles.more}>
+          <summary>{t('overviewMore')}</summary>
+          <button
+            type="button"
+            className={styles.danger}
+            disabled={!!busy}
+            onClick={() => setDeleting(true)}
+          >
+            {t('overviewDeleteOff')}
+          </button>
+        </details>
+      </section>
       {sources ? (
         <Modal
           title={t('overviewSourceTitle')}
@@ -454,7 +431,6 @@ export const MemoryOverview = ({
                     await clearSavedMemories()
                     setMemoryEnabled(false)
                     setDeleting(false)
-                    setOpen(false)
                     showToast(t('overviewDeletedOff'))
                   })
                 }

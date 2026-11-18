@@ -1,2 +1,29 @@
-declare const styles: { readonly [key: string]: string }
+declare const styles: {
+  readonly inline: string
+  readonly header: string
+  readonly organize: string
+  readonly section: string
+  readonly entry: string
+  readonly entryText: string
+  readonly entryActions: string
+  readonly correction: string
+  readonly muted: string
+  readonly more: string
+  readonly correctionBody: string
+  readonly correctionFooter: string
+  readonly help: string
+  readonly selection: string
+  readonly working: string
+  readonly proposal: string
+  readonly change: string
+  readonly buttons: string
+  readonly mutedItem: string
+  readonly danger: string
+  readonly info: string
+  readonly error: string
+  readonly empty: string
+  readonly sourceDialog: string
+  readonly dialogMain: string
+  readonly source: string
+}
 export = styles

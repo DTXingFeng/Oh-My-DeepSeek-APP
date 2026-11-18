@@ -53,7 +53,10 @@ const openMemory = async () => {
       `[...document.querySelectorAll('[role="tab"]')].find(tab=>tab.textContent==='记忆').click()`
     )
   }
+  await wait(`!!document.querySelector('[data-memory-tab="preferences"]')`)
+  await click('[data-memory-tab="preferences"]')
   await wait(`!!document.querySelector('input[aria-label="使用保存的记忆"]')`)
+  await cdp.evaluate(`document.querySelector('details').open=true`)
 }
 const toggle = async (label, checked) => {
   const current = await cdp.evaluate(
@@ -142,6 +145,7 @@ try {
   await wait(`document.body.innerText.includes('已扫描 2 个本地对话')`)
   check('existing chats are indexed locally without any API calls')
   assert.equal(await cdp.evaluate('window.__extractCalls.length+window.__mainCalls.length'), 0)
+  await click('[data-memory-tab="items"]')
   await buttonText('添加记忆')
   await input('textarea[aria-label="记忆内容"]', '我的长期学习项目代号是苍蓝花园。')
   await buttonText('保存记忆')
@@ -149,6 +153,7 @@ try {
   assert.ok(
     (await saved()).some((item) => item.text.includes('苍蓝花园') && item.origin === 'manual')
   )
+  await click('article button[aria-haspopup="menu"]')
   await buttonText('编辑记忆')
   await input(
     'textarea[aria-label="记忆内容"]',

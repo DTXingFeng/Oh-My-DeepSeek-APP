@@ -1,4 +1,5 @@
 declare const styles: {
+  readonly memoryDialog: string
   readonly "dialog": string;
   readonly "dialogMain": string;
   readonly "navigation": string;

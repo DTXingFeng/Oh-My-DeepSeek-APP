@@ -71,6 +71,14 @@ TypeScript、oxlint、网页构建和 Android 全新构建/`lintDebug` 通过；
 
 主 App 覆盖升级后 526 个对话与原有密钥保留。已在实际 App 中成功读取官方余额并显示明细；验收记录只记成功状态，不记录真实金额或密钥。没有为此调用收费模型。
 
+## 0.4.1 记忆页面
+
+Android WebView 中用人工样例检查摘要、条目与设置。在 320、412 和 1280 px 视口检查深浅主题、长文本换行、菜单定位、键盘导航、搜索无结果、空状态与整理失败反馈。20 项逻辑测试、16 项摘要流程、14 项长记忆回归、9 项界面检查通过。正式包已在模拟器覆盖安装，526 个对话与 API Key 配置保留。
+
+复验命令为 `$env:ANDROID_APP_ID='app.ohmydeepseek.android.importtest'; node scripts/memory-layout-smoke.mjs`。脚本只操作独立测试包，模型响应为本机模拟。
+
+![0.4.1 记忆摘要](screenshots/android-memory-summary-v041.png)
+
 ## 0.4.0：记忆摘要
 
 新增本机主题概览、可选智能整理、原条目编辑、划选/文字纠正预览、不再提起及删除并关闭。摘要绑定原条目快照，不独立充当新的个人事实；详见 [记忆摘要说明](MEMORY_SUMMARY.md)。

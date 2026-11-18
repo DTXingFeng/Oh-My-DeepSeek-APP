@@ -80,7 +80,7 @@ const SettingsContent = ({
       <Modal
         title={t('settings')}
         closable={!historyImport.busy}
-        className={styles.dialog}
+        className={clsx(styles.dialog, section === 'memory' && styles.memoryDialog)}
         mainClassName={styles.dialogMain}
         onClose={() => {
           if (!historyDelete.busy && !historyImport.busy) {

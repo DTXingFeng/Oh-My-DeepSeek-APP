@@ -466,3 +466,32 @@
     max-width: 100%;
   }
 }
+.memoryDialog {
+  width: 880px;
+  height: 720px;
+  min-width: 0;
+}
+.memoryDialog .content {
+  scrollbar-gutter: stable;
+}
+@media not all and (min-width: 768px) {
+  .dialog.memoryDialog {
+    width: 100%;
+    height: calc(100dvh - 24px);
+    max-height: none;
+  }
+  .memoryDialog .content {
+    padding-top: 20px;
+  }
+}
+@media (max-width: 380px) {
+  .memoryDialog .navItem {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    margin: 0;
+    padding: 9px 4px;
+    gap: 6px;
+    font-size: 12px;
+  }
+}

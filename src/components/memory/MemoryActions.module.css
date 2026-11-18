@@ -1,0 +1,72 @@
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 22px;
+  cursor: pointer;
+}
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.trigger:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.trigger:focus-visible,
+.menu button:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-text);
+  outline-offset: -2px;
+}
+.menu {
+  position: fixed;
+  z-index: 1100;
+  min-width: 164px;
+  max-width: calc(100vw - 16px);
+  padding: 5px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  box-shadow: 0 8px 28px #0002;
+}
+.menu button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+.menu button:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.menu .danger {
+  color: #b33d42;
+  [data-ds-dark-theme] & {
+    color: #ff9c9c;
+  }
+}
+@media (pointer: coarse) {
+  .trigger {
+    width: 48px;
+    height: 48px;
+  }
+  .menu button {
+    min-height: 48px;
+  }
+}

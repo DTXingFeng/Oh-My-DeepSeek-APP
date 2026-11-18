@@ -3,6 +3,7 @@ package app.ohmydeepseek.android;
 import android.app.Activity;
 import android.Manifest;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -33,6 +34,7 @@ import java.net.URLConnection;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -193,8 +195,9 @@ public final class MainActivity extends Activity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
         if (requestCode == PICK_FILE && fileCallback != null) {
-            fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, intent));
+            ValueCallback<Uri[]> callback = fileCallback;
             fileCallback = null;
+            callback.onReceiveValue(pickedFiles(resultCode, intent));
         } else if (requestCode == SAVE_FILE) {
             Uri destination = intent == null ? null : intent.getData();
             boolean cancelled = resultCode != RESULT_OK || destination == null;
@@ -217,6 +220,22 @@ public final class MainActivity extends Activity {
                 reportExport(ok, cancelled);
             });
         }
+    }
+
+    private static Uri[] pickedFiles(int resultCode, Intent intent) {
+        if (resultCode != RESULT_OK || intent == null) return null;
+        LinkedHashSet<Uri> selected = new LinkedHashSet<>();
+        // Some document providers use ClipData even when the user selects one file.
+        ClipData clip = intent.getClipData();
+        if (clip != null) {
+            for (int index = 0; index < clip.getItemCount(); index++) {
+                Uri uri = clip.getItemAt(index).getUri();
+                if (uri != null) selected.add(uri);
+            }
+        }
+        Uri data = intent.getData();
+        if (data != null) selected.add(data);
+        return selected.isEmpty() ? null : selected.toArray(new Uri[0]);
     }
 
     private void reportExport(boolean ok, boolean cancelled) {

@@ -6,7 +6,18 @@ import * as chats from '../chat/db.js'
 import { getVisibleMessages } from '../chat/branches.js'
 import type { Session } from '../chat/types.js'
 import * as db from './db.js'
-import { isForgetAllCommand, looksLikeSecret, parseExtraction } from './policy.js'
+import {
+  isForgetAllCommand,
+  looksLikeSecret,
+  parseExtraction,
+  shouldExtractMemory,
+} from './policy.js'
+import {
+  historyMemorySourceId,
+  historyMemoryTurns,
+  type HistoryMemoryTurn,
+} from './history-source.js'
+export { shouldExtractMemory } from './policy.js'
 import { rankHistory, rankMemories, tokenize } from './retrieval.js'
 import { MEMORY_EXTRACTION_PROMPT, formatMemoryContext } from './prompts.js'
 import type {
@@ -42,11 +53,15 @@ export const useMemoryState = create<MemoryState>(() => ({
 }))
 let initialization: Promise<void> | undefined
 let revision = 0
+let autoRevision = 0
 let indexEpoch = 0
 let rebuilding: Promise<void> | undefined
 let rebuildingEpoch = 0
 let updateQueue: Promise<unknown> = Promise.resolve()
-const updateJobs = new Map<string, { sessionId: string; controller: AbortController }>()
+const updateJobs = new Map<
+  string,
+  { sessionId: string; controller: AbortController; history: boolean }
+>()
 const sessionRevisions = new Map<string, number>()
 const indexTasks = new Map<string, Promise<void>>()
 
@@ -388,9 +403,14 @@ export const rebuildHistoryIndex = async (force = false): Promise<void> => {
   return rebuilding
 }
 
+export const cancelPendingMemoryUpdates = () => {
+  revision++
+  updateJobs.forEach((job) => job.controller.abort())
+}
+
 export const invalidateMemoryHistory = async () => {
   indexEpoch++
-  updateJobs.forEach((job) => job.controller.abort())
+  cancelPendingMemoryUpdates()
   await db.clearHistoryIndex()
   useMemoryState.setState({ indexed: 0, total: 0 })
 }
@@ -514,50 +534,77 @@ export const buildMemoryContext = async (
   }
 }
 
-export const shouldExtractMemory = (text: string) =>
-  isForgetAllCommand(text) ||
-  (!looksLikeSecret(text) &&
-    /记住|忘记|删[除掉].{0,12}记忆|叫我|我.{0,10}(喜欢|偏好|习惯|使用|用|住|养|工作|开发|项目|计划|准备|正在|目前|希望|是|叫|有)|请.{0,8}(简短|中文|英文|回答)|\b(?:i|my|remember|forget|prefer|delete.{0,20}memor|remove.{0,20}memor)\b/i.test(
-      text
-    ))
+type HistoryExtraction = { turn: HistoryMemoryTurn; signal: AbortSignal; revision: number }
+type ExtractionResult = 'updated' | 'unchanged'
 
 export const updateMemoryFromTurn = (
   sessionId: string,
   messageId: string,
   userText: string
-): Promise<'updated' | 'unchanged'> => {
+): Promise<ExtractionResult> => enqueueMemoryExtraction(sessionId, messageId, userText)
+
+const enqueueMemoryExtraction = (
+  sessionId: string,
+  messageId: string,
+  liveText: string,
+  history?: HistoryExtraction
+): Promise<ExtractionResult> => {
   const sourceId = `${sessionId}:${messageId}`
-  const enqueueRevision = revision
+  const enqueueRevision = history?.revision ?? revision
+  const enqueueAutoRevision = autoRevision
   const enqueueGeneration = sessionRevisions.get(sessionId) ?? 0
-  const run = async (): Promise<'updated' | 'unchanged'> => {
+  const apiKey = useSettings.getState().apiKey
+  const isCurrent = () =>
+    revision === enqueueRevision &&
+    enqueueGeneration === (sessionRevisions.get(sessionId) ?? 0) &&
+    useSettings.getState().apiKey === apiKey &&
+    !isMemoryExcluded(sessionId) &&
+    (history
+      ? useSettings.getState().memoryEnabled && !history.signal.aborted
+      : enabledAuto() && autoRevision === enqueueAutoRevision)
+
+  const loadHistoryText = async () => {
+    if (!history) {
+      return liveText
+    }
+    const session = await chats.loadSession(sessionId)
+    if (!session) {
+      return undefined
+    }
+    return historyMemoryTurns(
+      session,
+      useMemoryState.getState().saved.filter((memory) => memory.muted)
+    ).find((turn) => turn.messageId === messageId && turn.createdAt === history.turn.createdAt)
+      ?.text
+  }
+
+  const run = async (): Promise<ExtractionResult> => {
     await initMemory()
+    if (!isCurrent() || (await db.hasProcessed(sourceId))) {
+      return 'unchanged'
+    }
+    const userText = await loadHistoryText()
     if (
-      !enabledAuto() ||
-      revision !== enqueueRevision ||
-      enqueueGeneration !== (sessionRevisions.get(sessionId) ?? 0) ||
-      isMemoryExcluded(sessionId) ||
+      !userText ||
       !shouldExtractMemory(userText) ||
-      (await db.hasProcessed(sourceId))
+      (!history && !(await chats.loadSession(sessionId))) ||
+      !isCurrent()
     ) {
       return 'unchanged'
     }
-    if (!(await chats.loadSession(sessionId))) {
-      return 'unchanged'
-    }
-    if (isForgetAllCommand(userText)) {
+    if (!history && isForgetAllCommand(userText)) {
       await clearSavedMemories()
       await db.markProcessed(sourceId)
       return 'updated'
     }
-    const apiKey = useSettings.getState().apiKey
     if (!apiKey) {
       throw new Error('memoryNoApiKey')
     }
     const controller = new AbortController()
-    const startRevision = revision
-    const generation = sessionRevisions.get(sessionId) ?? 0
-    updateJobs.set(sourceId, { sessionId, controller })
-    const timer = setTimeout(() => controller.abort(), 25_000)
+    const abort = () => controller.abort()
+    history?.signal.addEventListener('abort', abort, { once: true })
+    updateJobs.set(sourceId, { sessionId, controller, history: !!history })
+    const timer = setTimeout(abort, 25_000)
     try {
       const existing = rankMemories(
         useMemoryState.getState().saved.filter((memory) => !memory.muted),
@@ -598,72 +645,75 @@ export const updateMemoryFromTurn = (
         throw new Error('memoryExtractionIncomplete')
       }
       const proposals = parseExtraction(choice.message?.content ?? '', existing, userText)
-      if (
-        controller.signal.aborted ||
-        revision !== startRevision ||
-        generation !== (sessionRevisions.get(sessionId) ?? 0) ||
-        !enabledAuto() ||
-        isMemoryExcluded(sessionId) ||
-        !(await chats.loadSession(sessionId))
-      ) {
+      const sourceStillValid = history
+        ? (await loadHistoryText()) === userText
+        : !!(await chats.loadSession(sessionId))
+      if (controller.signal.aborted || !sourceStillValid || !isCurrent()) {
         return 'unchanged'
       }
-      let changed = false
-      const cancelled = () =>
-        controller.signal.aborted ||
-        revision !== startRevision ||
-        !enabledAuto() ||
-        isMemoryExcluded(sessionId)
-      for (const id of proposals.forget) {
-        if (cancelled()) {
-          return 'unchanged'
-        }
-        await db.deleteMemory(id)
-        changed = true
-      }
+
+      const saved = await db.loadMemories()
+      const removed = history ? [] : proposals.forget
+      const records = new Map(
+        saved.filter((memory) => !removed.includes(memory.id)).map((memory) => [memory.id, memory])
+      )
+      const updates = new Map<string, SavedMemory>()
       for (const proposal of proposals.memories) {
-        const records = await db.loadMemories()
-        if (cancelled()) {
-          return 'unchanged'
-        }
-        const previous = records.find(
-          (memory) =>
-            memory.id === proposal.replaces ||
-            (memory.origin === 'automatic' && memory.key === proposal.key)
+        const known = [...records.values()]
+        const matching = known.filter(
+          (memory) => memory.key === proposal.key || memory.id === proposal.replaces
         )
         if (
-          previous?.origin === 'manual' ||
-          previous?.muted ||
-          records.some((memory) => memory.text.trim() === proposal.text.trim())
+          matching.some(
+            (memory) =>
+              memory.origin === 'manual' ||
+              memory.muted ||
+              (history && memory.updatedAt > history.turn.createdAt)
+          )
         ) {
           continue
         }
+        if (known.some((memory) => memory.text.trim() === proposal.text.trim())) {
+          continue
+        }
+        const previous = matching.find((memory) => memory.id === proposal.replaces) ?? matching[0]
         const now = Date.now()
-        await db.putMemory({
+        const memory: SavedMemory = {
           id: previous?.id ?? createId(),
           text: proposal.text,
           key: proposal.key,
           origin: 'automatic',
           createdAt: previous?.createdAt ?? now,
-          updatedAt: now,
+          updatedAt: history?.turn.createdAt ?? now,
           sourceSessionId: sessionId,
           sourceMessageId: messageId,
-        })
-        changed = true
+        }
+        records.set(memory.id, memory)
+        updates.set(memory.id, memory)
       }
-      await db.markProcessed(sourceId)
+      const committed = await db.commitExtraction(
+        [...updates.values()],
+        removed,
+        sourceId,
+        memorySnapshot(saved),
+        () => isCurrent() && !controller.signal.aborted
+      )
+      if (!committed) {
+        if (isCurrent()) {
+          throw new Error('memoryOverviewChanged')
+        }
+        return 'unchanged'
+      }
       await refreshSaved()
-      return changed ? 'updated' : 'unchanged'
+      return updates.size || removed.length ? 'updated' : 'unchanged'
     } catch (error) {
-      if (
-        controller.signal.aborted &&
-        (revision !== startRevision || !enabledAuto() || isMemoryExcluded(sessionId))
-      ) {
+      if (controller.signal.aborted && !isCurrent()) {
         return 'unchanged'
       }
       throw error
     } finally {
       clearTimeout(timer)
+      history?.signal.removeEventListener('abort', abort)
       updateJobs.delete(sourceId)
     }
   }
@@ -676,6 +726,91 @@ export const updateMemoryFromTurn = (
     )
   updateQueue = task
   return task
+}
+
+export const HISTORY_MEMORY_BATCH_SIZES = [10, 25, 50] as const
+export type HistoryMemoryPlan = { turns: HistoryMemoryTurn[]; eligible: number; revision: number }
+
+export const scanHistoryMemories = async (
+  signal: AbortSignal,
+  onProgress: (done: number, total: number) => void
+): Promise<HistoryMemoryPlan> => {
+  await initMemory()
+  const scanRevision = revision
+  const summaries = await chats.loadSessionSummaries()
+  const processed = new Set(await db.loadProcessedIds())
+  const muted = useMemoryState.getState().saved.filter((memory) => memory.muted)
+  let turns: HistoryMemoryTurn[] = []
+  let eligible = 0
+  const max = HISTORY_MEMORY_BATCH_SIZES.at(-1) ?? 50
+  for (const [index, summary] of summaries.entries()) {
+    if (signal.aborted || revision !== scanRevision) {
+      throw new Error('memoryOverviewChanged')
+    }
+    if (!isMemoryExcluded(summary.id)) {
+      const session = await chats.loadSession(summary.id)
+      if (session) {
+        const next = historyMemoryTurns(session, muted).filter(
+          (turn) => !processed.has(historyMemorySourceId(turn))
+        )
+        eligible += next.length
+        turns = turns
+          .concat(
+            next.map(({ sessionId, messageId, createdAt }) => ({ sessionId, messageId, createdAt }))
+          )
+          .sort(
+            (a, b) =>
+              b.createdAt - a.createdAt ||
+              historyMemorySourceId(a).localeCompare(historyMemorySourceId(b))
+          )
+          .slice(0, max)
+      }
+    }
+    onProgress(index + 1, summaries.length)
+    if (index % 8 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+  }
+  if (signal.aborted || revision !== scanRevision) {
+    throw new Error('memoryOverviewChanged')
+  }
+  return { turns, eligible, revision: scanRevision }
+}
+
+export const generateHistoryMemories = async (
+  plan: HistoryMemoryPlan,
+  batchSize: (typeof HISTORY_MEMORY_BATCH_SIZES)[number],
+  signal: AbortSignal,
+  onProgress: (done: number, changed: number) => void
+) => {
+  if (!useSettings.getState().apiKey || !useSettings.getState().memoryEnabled) {
+    throw new Error('memoryOverviewEnable')
+  }
+  let done = 0
+  let changed = 0
+  const verify = () => {
+    if (signal.aborted) {
+      throw signal.reason
+    }
+    if (revision !== plan.revision) {
+      throw new Error('memoryOverviewChanged')
+    }
+  }
+  verify()
+  for (const turn of plan.turns.slice(0, batchSize).reverse()) {
+    verify()
+    const result = await enqueueMemoryExtraction(turn.sessionId, turn.messageId, '', {
+      turn,
+      signal,
+      revision: plan.revision,
+    })
+    verify()
+    done++
+    if (result === 'updated') {
+      changed++
+    }
+    onProgress(done, changed)
+  }
 }
 
 export const exportMemoryFile = async () => {
@@ -775,9 +910,15 @@ export const importMemoryFile = async (file: File) => {
 /** Cancels pending writes as soon as the user disables memory. */
 export const bindMemorySettings = () =>
   useSettings.subscribe((state, previous) => {
-    if (!state.memoryEnabled || !state.memoryAuto) {
-      revision++
-      updateJobs.forEach((job) => job.controller.abort())
+    if (state.apiKey !== previous.apiKey || (!state.memoryEnabled && previous.memoryEnabled)) {
+      cancelPendingMemoryUpdates()
+    } else if (!state.memoryAuto && previous.memoryAuto) {
+      autoRevision++
+      for (const job of updateJobs.values()) {
+        if (!job.history) {
+          job.controller.abort()
+        }
+      }
     }
     if (
       (!state.memoryEnabled || !state.memoryHistory) &&

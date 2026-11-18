@@ -34,9 +34,11 @@ const categories = Object.keys(categoryLabels) as OverviewCategory[]
 export const MemoryOverview = ({
   onEdit,
   onAdd,
+  onGenerateHistory,
 }: {
   onEdit: (memory: SavedMemory) => void
   onAdd: () => void
+  onGenerateHistory: () => void
 }) => {
   const t = useTranslate()
   const saved = useMemoryState((state) => state.saved)
@@ -180,9 +182,14 @@ export const MemoryOverview = ({
         {!entries.length ? (
           <div className={styles.empty}>
             <p>{t('overviewEmpty')}</p>
-            <Button size="s" onClick={onAdd}>
-              {t('memoryAdd')}
-            </Button>
+            <div className={styles.emptyActions}>
+              <Button size="s" onClick={onAdd}>
+                {t('memoryAdd')}
+              </Button>
+              <Button size="s" variant="outlined" onClick={onGenerateHistory}>
+                {t('historyMemoryTitle')}
+              </Button>
+            </div>
           </div>
         ) : null}
         {categories.map((category) => {
@@ -375,6 +382,13 @@ export const MemoryOverview = ({
         ) : null}
         <details className={styles.more}>
           <summary>{t('overviewMore')}</summary>
+          {entries.length ? (
+            <div className={styles.historyAction}>
+              <Button size="s" variant="outlined" onClick={onGenerateHistory}>
+                {t('historyMemoryTitle')}
+              </Button>
+            </div>
+          ) : null}
           <button
             type="button"
             className={styles.danger}

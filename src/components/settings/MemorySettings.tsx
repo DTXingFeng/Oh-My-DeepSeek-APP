@@ -28,7 +28,7 @@ import styles from './MemorySettings.module.css'
 import { MemoryActions } from '../memory/MemoryActions.js'
 import { MemoryOverview } from '../memory/MemoryOverview.js'
 
-export const MemorySettings = () => {
+export const MemorySettings = ({ onGenerateHistory }: { onGenerateHistory: () => void }) => {
   const t = useTranslate()
   const state = useMemoryState()
   const settings = useSettings()
@@ -147,6 +147,7 @@ export const MemorySettings = () => {
           <MemoryOverview
             onEdit={(memory) => setEditor({ id: memory.id, text: memory.text })}
             onAdd={() => setEditor({ text: '' })}
+            onGenerateHistory={onGenerateHistory}
           />
         ) : view === 'items' ? (
           <>

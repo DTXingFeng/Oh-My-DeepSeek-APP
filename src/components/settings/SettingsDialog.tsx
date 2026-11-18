@@ -38,6 +38,7 @@ import styles from './Settings.module.css'
 import { saveBlob } from '../../services/native.js'
 import type { ImportProgress } from '../../services/chat/history/progress.js'
 import { MemorySettings } from './MemorySettings.js'
+import { HistoryMemoryDialog } from '../memory/HistoryMemoryDialog.js'
 import { BalanceSummary } from '../balance/Balance.js'
 
 /**
@@ -70,6 +71,8 @@ const SettingsContent = ({
   const isMobile = useIsMobile()
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
+  const [historyMemoryOpen, setHistoryMemoryOpen] = useState(false)
+  const openHistoryMemory = () => setHistoryMemoryOpen(true)
   // 切换分组不丢失正在输入的 API Key 与导入状态
   const apiKeyEditor = useApiKeyEditor()
   const historyDelete = useHistoryDelete()
@@ -105,7 +108,10 @@ const SettingsContent = ({
           ))}
         </div>
         <div role="tabpanel" className={styles.content}>
-          <HistoryImportStatus historyImport={historyImport} />
+          <HistoryImportStatus
+            historyImport={historyImport}
+            onGenerateMemory={section === 'data' ? openHistoryMemory : undefined}
+          />
           {section === 'general' ? (
             <>
               <SettingCell
@@ -127,7 +133,7 @@ const SettingsContent = ({
               <LocationSetting />
             </>
           ) : section === 'memory' ? (
-            <MemorySettings />
+            <MemorySettings onGenerateHistory={openHistoryMemory} />
           ) : (
             <>
               <ApiKeyField editor={apiKeyEditor} />
@@ -156,6 +162,9 @@ const SettingsContent = ({
       </Modal>
       {historyImport.file ? <ImportConfirm historyImport={historyImport} /> : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}
+      {historyMemoryOpen ? (
+        <HistoryMemoryDialog onClose={() => setHistoryMemoryOpen(false)} />
+      ) : null}
     </>
   )
 }
@@ -536,8 +545,10 @@ const formatImportSize = (bytes: number) =>
 /** Persistent, visible task feedback; percentages describe this phase only. */
 const HistoryImportStatus = ({
   historyImport: task,
+  onGenerateMemory,
 }: {
   historyImport: ReturnType<typeof useHistoryImport>
+  onGenerateMemory?: () => void
 }) => {
   const t = useTranslate()
   if (!task.busy && !task.status) {
@@ -598,6 +609,16 @@ const HistoryImportStatus = ({
           ) : null}
           <div>{t('historyImportKeepOpen')}</div>
         </>
+      ) : null}
+      {onGenerateMemory &&
+      !task.busy &&
+      (task.status?.key === 'historyImported' || task.status?.key === 'historyImportedOne') &&
+      Number(task.status.params?.count ?? 0) > 0 ? (
+        <div>
+          <Button size="s" variant="outlined" onClick={onGenerateMemory}>
+            {t('historyMemoryTitle')}
+          </Button>
+        </div>
       ) : null}
     </div>
   )

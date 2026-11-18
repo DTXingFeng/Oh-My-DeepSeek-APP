@@ -1,6 +1,6 @@
 {
   "name": "oh-my-deepseek-app",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Android client for the official DeepSeek API, based on deepseek-ai/chat-demo.",
   "license": "MIT",
   "private": true,

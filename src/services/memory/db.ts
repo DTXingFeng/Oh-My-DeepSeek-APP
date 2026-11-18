@@ -51,6 +51,31 @@ export const updateSavedBatch = async (
 export const deleteMemory = async (id: string) => (await getDB()).delete('saved', id)
 export const hasProcessed = async (id: string) => !!(await (await getDB()).get('processed', id))
 export const markProcessed = async (id: string) => (await getDB()).put('processed', { id })
+export const loadProcessedIds = async () => (await getDB()).getAllKeys('processed')
+
+/** Write each turn atomically, including its marker used to resume a history batch. */
+export const commitExtraction = async (
+  updates: SavedMemory[],
+  removed: string[],
+  sourceId: string,
+  expected: string,
+  isCurrent: () => boolean
+) => {
+  const tx = (await getDB()).transaction(['saved', 'processed'], 'readwrite')
+  const saved = tx.objectStore('saved')
+  if (memorySnapshot(await saved.getAll()) !== expected || !isCurrent()) {
+    tx.abort()
+    await tx.done.catch(() => {})
+    return false
+  }
+  await Promise.all([
+    ...removed.map((id) => saved.delete(id)),
+    ...updates.map((memory) => saved.put(memory)),
+    tx.objectStore('processed').put({ id: sourceId }),
+    tx.done,
+  ])
+  return true
+}
 export const loadExclusions = async () => (await getDB()).getAllKeys('excluded')
 export const writeExclusion = async (id: string, excluded: boolean) =>
   excluded ? (await getDB()).put('excluded', { id }) : (await getDB()).delete('excluded', id)

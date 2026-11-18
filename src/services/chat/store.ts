@@ -18,6 +18,7 @@ import { createLatestReminder } from './latestReminder.js'
 import {
   adoptNewChatMemory,
   buildMemoryContext,
+  cancelPendingMemoryUpdates,
   invalidateMemoryHistory,
   isMemoryExcluded,
   queueSessionIndex,
@@ -405,6 +406,7 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
     throw new Error('History replacement is already in progress')
   }
   set({ importingHistory: true })
+  cancelPendingMemoryUpdates()
   try {
     for (const controller of Object.values(get().streaming)) {
       controller.abort()

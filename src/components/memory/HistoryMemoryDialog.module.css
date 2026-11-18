@@ -1,0 +1,43 @@
+.dialog {
+  width: 460px;
+}
+.body {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.body p {
+  margin: 0 0 12px;
+}
+.body p:last-child {
+  margin-bottom: 0;
+}
+.body strong {
+  color: var(--dsw-alias-label-primary);
+}
+.body progress {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  accent-color: var(--dsw-alias-brand-text);
+}
+.batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 10px;
+  color: var(--dsw-alias-label-primary);
+}
+.batch select {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: inherit;
+  font: inherit;
+}
+.note {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}

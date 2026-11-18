@@ -22,6 +22,8 @@ declare const styles: {
   readonly info: string
   readonly error: string
   readonly empty: string
+  readonly emptyActions: string
+  readonly historyAction: string
   readonly sourceDialog: string
   readonly dialogMain: string
   readonly source: string

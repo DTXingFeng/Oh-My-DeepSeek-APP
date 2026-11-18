@@ -15,6 +15,18 @@ export const looksLikeSecret = (text: string) =>
     text
   )
 
+export const isForgetRequest = (text: string) =>
+  /^(?:(?:请|麻烦你|帮我|我希望你|please\s+))*(?:忘[记掉]|删[除掉]|不要.{0,8}记住|forget\b|remove\b|delete\b)/i.test(
+    text.trim()
+  ) || isForgetAllCommand(text)
+
+export const shouldExtractMemory = (text: string) =>
+  isForgetAllCommand(text) ||
+  (!looksLikeSecret(text) &&
+    /记住|忘记|删[除掉].{0,12}记忆|叫我|我.{0,10}(喜欢|偏好|习惯|使用|用|住|养|工作|开发|项目|计划|准备|正在|目前|希望|是|叫|有)|请.{0,8}(简短|中文|英文|回答)|\b(?:i|my|remember|forget|prefer|delete.{0,20}memor|remove.{0,20}memor)\b/i.test(
+      text
+    ))
+
 /** Treat the model's JSON as untrusted proposals, never as executable instructions. */
 export const parseExtraction = (
   text: string,
@@ -57,11 +69,7 @@ export const parseExtraction = (
     }
     return [{ text: content, key: memory.key, ...(replaces ? { replaces } : {}) }]
   })
-  const explicitForget =
-    /^(?:(?:请|麻烦你|帮我|我希望你|please\s+))*(?:忘[记掉]|删[除掉]|不要.{0,8}记住|forget\b|remove\b|delete\b)/i.test(
-      userText.trim()
-    )
-  const forget = explicitForget
+  const forget = isForgetRequest(userText)
     ? input.forget.filter((id): id is string => typeof id === 'string' && known.has(id)).slice(0, 5)
     : []
   const forgottenKeys = new Set(forget.map((id) => known.get(id)?.key))
